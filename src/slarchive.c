@@ -332,6 +332,7 @@ parameter_proc (int argcount, char **argvec)
   if ( ! slconn->sladdr )
     {
       fprintf(stderr, "No SeedLink server specified\n\n");
+      fprintf(stderr, "%s version %s\n\n", PACKAGE, VERSION); 
       fprintf(stderr, "Usage: %s [options] [host][:port]\n", PACKAGE);
       fprintf(stderr, "Try '-h' for detailed help\n");
       exit (1);
@@ -516,7 +517,6 @@ add_dsarchive( const char *path, int archivetype )
     return -1;
   }
 
-
   newdsa->next = dsarchive;
   dsarchive = newdsa;
 
@@ -562,7 +562,8 @@ print_timelog (const char *msg)
 static void
 usage (void)
 {
-  fprintf (stderr, "\nUsage: %s [options] [host][:port]\n\n", PACKAGE);
+  fprintf (stderr, "%s version %s\n\n", PACKAGE, VERSION);
+  fprintf (stderr, "Usage: %s [options] [host][:port]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## General program options ##\n"
 	   " -V             report program version\n"
