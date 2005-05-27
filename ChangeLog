@@ -1,5 +1,6 @@
 2005.147: version 1.6
 	- Update to libslink 1.5.
+	- Add version to usage messages.
 
 2004.222: version 1.5
 	- Update to libslink 1.4.

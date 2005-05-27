@@ -11,14 +11,12 @@ In most environments a simple 'make' will compile slarchive.
 Using GCC, running 'make static' will compile a static version of slarchive
 if possible.
 
-To use a compiler other than GCC 'src/Makefile' and 'libslink/Makefile'
-need to be modfied, comments are included in the Makefiles.
+GCC can be explicitly used by running 'make gcc'.
 
 SunOS/Solaris:
 
 In order to compile under Solaris the 'src/Makefile' needs to be edited.
 See the file for instructions.
-
 
 For further installation simply copy the resulting binary and man page
 (in the 'doc' directory) to appropriate system directories.
