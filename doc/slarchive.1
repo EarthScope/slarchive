@@ -1,10 +1,10 @@
-.TH SLARCHIVE 1 2004/08/09
+.TH SLARCHIVE 1 2005/05/27
 .SH NAME
 slarchive \- SeedLink client for data stream archiving
 
 .SH SYNOPSIS
 .nf
-slarchive [options] [host][:port]
+slarchive [options] [host][:][port]
 
 .fi
 .SH DESCRIPTION
@@ -16,7 +16,6 @@ SeisComP Data Structure (SDS), Buffer of Uniform Data structure (BUD)
 and the old SeisComP/datalog structure (DLOG) for backwards
 compatibility.  To write more than one archive simply specify multiple
 \fIformat\fP definitions (or presets).
-
 
 .SH OPTIONS
 
@@ -170,12 +169,13 @@ state information.
 
 Warning: time windowing might be disabled on the remote server.
 
-.IP "\fI[host][:port]\fR"
+.IP "\fI[host][:][port]\fR"
 A required argument, specifies the address of the SeedLink server in
-host:port format.  Either the host or port must be specified.  If host
-is omitted then localhost is assumed, i.e. ':18000'
+host:port format.  Either the host, port or both can be omitted.  If
+host is omitted then localhost is assumed, i.e.  ':18000'
 implies 'localhost:18000'.  If the port is omitted then 18000 is
-assumed, i.e. 'localhost' implies 'localhost:18000'.
+assumed, i.e.  'localhost' implies 'localhost:18000'.  If only ':' is
+specified 'localhost:18000' is assumed.
 
 .SH "SeedLink SELECTORS"
 \fINotes regarding selectors from a SeedLink configuration file\fR
