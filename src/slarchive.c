@@ -333,7 +333,7 @@ parameter_proc (int argcount, char **argvec)
     {
       fprintf(stderr, "No SeedLink server specified\n\n");
       fprintf(stderr, "%s version %s\n\n", PACKAGE, VERSION); 
-      fprintf(stderr, "Usage: %s [options] [host][:port]\n\n", PACKAGE);
+      fprintf(stderr, "Usage: %s [options] [host][:][port]\n\n", PACKAGE);
       fprintf(stderr, "Try '-h' for detailed help\n");
       exit (1);
     }
@@ -563,27 +563,27 @@ static void
 usage (void)
 {
   fprintf (stderr, "%s version %s\n\n", PACKAGE, VERSION);
-  fprintf (stderr, "Usage: %s [options] [host][:port]\n\n", PACKAGE);
+  fprintf (stderr, "Usage: %s [options] [host][:][port]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## General program options ##\n"
-	   " -V             report program version\n"
-	   " -h             show this usage message\n"
-	   " -v             be more verbose, multiple flags can be used\n"
-	   " -p             print details of data packets, multiple flags can be used\n"
-	   " -nd delay      network re-connect delay (seconds), default 30\n"
-	   " -nt timeout    network timeout (seconds), re-establish connection if no\n"
-	   "                  data/keepalives are received in this time, default 600\n"
-	   " -k interval    send keepalive (heartbeat) packets this often (seconds)\n"
-	   " -x sfile[:int] save/restore stream state information to this file\n"
-	   " -i timeout     idle stream entries might be closed (seconds), default 300\n"
+	   " -V              report program version\n"
+	   " -h              show this usage message\n"
+	   " -v              be more verbose, multiple flags can be used\n"
+	   " -p              print details of data packets, multiple flags can be used\n"
+	   " -nd delay       network re-connect delay (seconds), default 30\n"
+	   " -nt timeout     network timeout (seconds), re-establish connection if no\n"
+	   "                   data/keepalives are received in this time, default 600\n"
+	   " -k interval     send keepalive (heartbeat) packets this often (seconds)\n"
+	   " -x sfile[:int]  save/restore stream state information to this file\n"
+	   " -i timeout      idle stream entries might be closed (seconds), default 300\n"
 	   " -d             configure the connection in dial-up mode\n"
-	   " -Fi[:overlap]  Initially check (existing files) that data records are newer\n"
-	   " -Fc[:overlap]  Continuously check that data records are newer\n"
+	   " -Fi[:overlap]   Initially check (existing files) that data records are newer\n"
+	   " -Fc[:overlap]   Continuously check that data records are newer\n"
 	   "\n"
 	   " ## Data stream selection ##\n"
-	   " -s selectors   selectors for uni-station or default for multi-station mode\n"
-	   " -l listfile    read a stream list from this file for multi-station mode\n"
-           " -S streams     define a stream list for multi-station mode\n"
+	   " -s selectors    selectors for uni-station or default for multi-station mode\n"
+	   " -l listfile     read a stream list from this file for multi-station mode\n"
+           " -S streams      define a stream list for multi-station mode\n"
 	   "   'streams' = 'stream1[:selectors1],stream2[:selectors2],...'\n"
 	   "        'stream' is in NET_STA format, for example:\n"
 	   "        -S \"IU_KONO:BHE BHN,GE_WLF,MN_AQU:HH?.D\"\n\n"
@@ -593,14 +593,13 @@ usage (void)
 	   "        the end time is optional, but the colon must be present\n"
 	   "\n"
 	   " ## Data archiving options ##\n"
-	   " -A format      save all received records is a custom file structure\n"
-	   " -SDS  SDSdir   save all received records in a SDS file structure\n"
-	   " -BUD  BUDdir   save all received data records in a BUD file structure\n"
-	   " -DLOG DLOGdir  save all received data records in an old-style\n"
-	   "                  SeisComP/datalog file structure\n"
+	   " -A format       save all received records is a custom file structure\n"
+	   " -SDS  SDSdir    save all received records in a SDS file structure\n"
+	   " -BUD  BUDdir    save all received data records in a BUD file structure\n"
+	   " -DLOG DLOGdir   save all received data records in an old-style\n"
+	   "                   SeisComP/datalog file structure\n"
 	   "\n"
-	   " [host][:port]  Address of the SeedLink server in host:port format\n"
-	   "                  if host is omitted (i.e. ':18000') localhost is assumed\n"
-	   "                  if :port is omitted (i.e. 'localhost') 18000 is assumed\n\n");
+	   " [host][:][port] Address of the SeedLink server in host:port format\n"
+	   "                  Default host is 'localhost' and default port is '18000'\n\n");
 
 }  /* End of usage() */
