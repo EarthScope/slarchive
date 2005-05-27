@@ -333,7 +333,7 @@ parameter_proc (int argcount, char **argvec)
     {
       fprintf(stderr, "No SeedLink server specified\n\n");
       fprintf(stderr, "%s version %s\n\n", PACKAGE, VERSION); 
-      fprintf(stderr, "Usage: %s [options] [host][:port]\n", PACKAGE);
+      fprintf(stderr, "Usage: %s [options] [host][:port]\n\n", PACKAGE);
       fprintf(stderr, "Try '-h' for detailed help\n");
       exit (1);
     }
