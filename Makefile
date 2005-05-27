@@ -1,7 +1,7 @@
 
 DIRS = libslink src
 
-all clean static install ::
+all gcc debug gccdebug clean static install ::
 	@for d in $(DIRS) ; do \
 	    echo "Running $(MAKE) $@ in $$d" ; \
 	    if [ -f $$d/Makefile -o -f $$d/makefile ] ; \
