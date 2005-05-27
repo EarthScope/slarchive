@@ -1,3 +1,6 @@
+2005.147: version 1.6
+	- Update to libslink 1.5.
+
 2004.222: version 1.5
 	- Update to libslink 1.4.
 	- Either host or port is optional when specifying the
