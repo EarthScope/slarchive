@@ -21,7 +21,7 @@ DLL = libslink.dll
 
 INCS = -I.
 
-OBJS=	tswap.obj	&
+OBJS=	gswap.obj	&
 	unpack.obj	&
 	msrecord.obj	&
 	genutils.obj	&
@@ -42,8 +42,8 @@ dll:	$(OBJS) .SYMBOLIC
 	wlink $(lflags) name libslink file {$(OBJS)}
 
 # Source dependencies:
-tswap.obj:	tswap.c tswap.h slplatform.h
-unpack.obj:	unpack.c unpack.h tswap.h 
+gswap.obj:	gswap.c libslink.h
+unpack.obj:	unpack.c unpack.h libslink.h 
 msrecord.obj:	msrecord.c libslink.h
 slutils.obj:	slutils.c libslink.h
 strutils.obj:	strutils.c libslink.h

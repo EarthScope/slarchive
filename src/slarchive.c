@@ -6,7 +6,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified 2004.222
+ * modified 2005.147
  ***************************************************************************/
 
 #include <stdio.h>
@@ -20,7 +20,7 @@
 #include "archive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "1.5"
+#define VERSION   "1.6"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);

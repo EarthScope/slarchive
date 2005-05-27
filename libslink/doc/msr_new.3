@@ -1,4 +1,4 @@
-.TH MSR_NEW 3 2004/07/14
+.TH MSR_NEW 3 2005/04/01
 .SH NAME
 Utility routines for parsing, printing, etc. of Mini-SEED records
 
@@ -14,6 +14,7 @@ Utility routines for parsing, printing, etc. of Mini-SEED records
 .BI "int        \fBmsr_print\fP (SLlog *" log ", MSrecord *" msr ", int " details ");
 .sp
 .BI "int        \fBmsr_dsamprate\fP (MSrecord *" msr ", double *" samprate );
+.BI "double     \fBmsr_dnomsamprate\fP (MSrecord *" msr );
 .BI "double     \fBmsr_depochstime\fP (MSrecord *" msr );
 .fi
 .SH DESCRIPTION
@@ -80,13 +81,16 @@ will be used.  If the \fIdetails\fP flag is greater than zero detailed
 information (values in the fixed header and following blockettes) is
 printed.  Otherwise only a single line for each packet is printed.
 
-\fBmsr_dsamprate\fP and \fBmsr_depochstime\fP are helper functions for
-common, mundane calculations.  \fBmsr_dsamprate\fP sets \fIsamprate\fP
-to either the actual sample rate (field 3 of Blockette 100), if it is
-included and parsed, or the nominal sample rate calculated from the
-sample rate factor and multiplier in the fixed section data header.
-\fBmsr_depochstime\fP returns the start time of the record as a double
-precision Unix/POSIX epoch (seconds since January 1, 1970).
+\fBmsr_dsamprate\fP, \fBmsr_dnomsamprate\fP and \fBmsr_depochstime\fP
+are helper functions for common, mundane calculations.
+\fBmsr_dsamprate\fP sets \fIsamprate\fP to either the actual sample
+rate (field 3 of Blockette 100), if it is included and parsed, or the
+nominal sample rate calculated from the sample rate factor and
+multiplier in the fixed section data header.  \fBmsr_dnomsamprate\fP
+always returns the nominal sample rate.  \fBmsr_depochstime\fP returns
+the start time of the record as a double precision Unix/POSIX epoch
+(seconds since January 1, 1970) including the microseconds offset in
+Blockette 1001 if included.
 
 .SH RETURN VALUES
 \fBmsr_new\fP returns a pointer to the newly allocated MSrecord
@@ -133,5 +137,6 @@ strings.
 .SH AUTHOR
 .nf
 Chad Trabant
-ORFEUS Data Center/EC-Project MEREDIAN
+Developed while at ORFEUS Data Center/EC-Project MEREDIAN
+Currently at IRIS Data Management Center
 .fi

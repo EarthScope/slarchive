@@ -8,7 +8,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified 2004.222
+ * modified 2005.087
  ***************************************************************************/
 
 #include <stdio.h>
@@ -164,7 +164,7 @@ parameter_proc (int argcount, char **argvec)
 {
   int optind;
   int error = 0;
-
+  
   char *streamfile  = 0;	/* stream list file for configuring streams */
   char *multiselect = 0;
   char *selectors   = 0;
@@ -234,22 +234,24 @@ parameter_proc (int argcount, char **argvec)
 	{
 	  fprintf(stderr, "Unknown option: %s\n", argvec[optind]);
 	  exit (1);
+	}
+    }
 
   /* Make sure a server was specified */
   if ( ! slconn->sladdr )
     {
       fprintf(stderr, "No SeedLink server specified\n\n");
-      fprintf(stderr, "Usage: slclient [options] [host][:port]\n");
+      fprintf(stderr, "Usage: %s [options] [host][:port]\n", PACKAGE);
       fprintf(stderr, "Try '-h' for detailed help\n");
       exit (1);
     }
 
   /* Initialize the verbosity for the sl_log function */
   sl_loginit (verbose, NULL, NULL, NULL, NULL);
-
+  
   /* Report the program version */
   sl_log (0, 1, "%s version: %s\n", PACKAGE, VERSION);
-
+  
   /* If errors then report the usage message and quit */
   if (error)
     {
@@ -284,7 +286,7 @@ parameter_proc (int argcount, char **argvec)
 	  sl_log (2, 0, "state recovery failed\n");
 	}
     }
-
+  
   return 0;
 }				/* End of parameter_proc() */
 
@@ -334,3 +336,4 @@ term_handler (int sig)
   sl_terminate (slconn);
 }
 #endif
+

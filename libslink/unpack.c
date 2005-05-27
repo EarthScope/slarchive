@@ -37,7 +37,7 @@
  *
  *  Modified by Chad Trabant, ORFEUS/EC-Project MEREDIAN		
  *
- *  modified: 2004.196
+ *  modified: 2005.103
  ************************************************************************/
 
 /*
@@ -73,7 +73,6 @@
 #include <memory.h>
 
 #include "libslink.h"
-#include "tswap.h"
 
 /* Data types */
 #define STEIM1                  10
@@ -100,12 +99,12 @@ typedef union u_diff {                  /* union for steim 1 objects.   */
     int8_t          byte[4];            /* 4 1-byte differences.        */
     int16_t         hw[2];              /* 2 halfword differences.      */
     int32_t         fw;                 /* 1 fullword difference.       */
-} U_DIFF;
+} SLP_PACKED U_DIFF;
 
 typedef struct frame {                  /* frame in a seed data record. */
     uint32_t	    ctrl;               /* control word for frame.      */
     U_DIFF          w[15];              /* compressed data.             */
-} FRAME;
+} SLP_PACKED FRAME;
 
 
 /* Internal unpacking routines */
@@ -286,18 +285,22 @@ int unpack_steim1
     /* Extract forward and reverse integration constants in first frame */
     *px0 = X0;
     *pxn = XN;
-    tswap4 ((uint32_t *) px0, swapflag);
-    tswap4 ((uint32_t *) pxn, swapflag);
 
+    if ( swapflag )
+      {
+	gswap4 (px0);
+	gswap4 (pxn);
+      }
+    
     /*	Decode compressed data in each frame.				*/
     for (fn = 0; fn < num_data_frames; fn++)
       {
 	if (fast && nd >= req_samples)
 	  break;
-
+	
 	ctrl = pf->ctrl;
-	tswap4 ((uint32_t *) &ctrl, swapflag);
-
+	if ( swapflag ) gswap4 (&ctrl);
+	
 	for (wn = 0; wn < VALS_PER_FRAME; wn++)
 	  {
 	    if (nd >= num_samples) break;
@@ -325,7 +328,7 @@ int unpack_steim1
 		    if (swapflag)
 		      {
 			stmp = pf->w[wn].hw[i];
-			tswap2 ((uint16_t *) &stmp, swapflag);
+			if ( swapflag ) gswap2 (&stmp);
 			*diff++ = stmp;
 		      }
 		    else *diff++ = pf->w[wn].hw[i];
@@ -337,7 +340,7 @@ int unpack_steim1
 		if (swapflag)
 		  {
 		    itmp = pf->w[wn].fw;
-		    tswap4 ((uint32_t *) &itmp, swapflag);
+		    if ( swapflag ) gswap4 (&itmp);
 		    *diff++ = itmp;
 		  }
 		else *diff++ = pf->w[wn].fw;
@@ -461,15 +464,19 @@ int unpack_steim2
     /* Extract forward and reverse integration constants in first frame.*/
     *px0 = X0;
     *pxn = XN;
-    tswap4 ((uint32_t *) px0, swapflag);
-    tswap4 ((uint32_t *) pxn, swapflag);
 
+    if ( swapflag )
+      {
+	gswap4 (px0);
+	gswap4 (pxn);
+      }
+    
     /*	Decode compressed data in each frame.				*/
     for (fn = 0; fn < num_data_frames; fn++)
       {
 	if (fast && nd >= req_samples) break;
 	ctrl = pf->ctrl;
-	tswap4 ((uint32_t *) &ctrl, swapflag);
+	if ( swapflag ) gswap4 (&ctrl);
 
 	for (wn = 0; wn < VALS_PER_FRAME; wn++)
 	  {
@@ -492,7 +499,7 @@ int unpack_steim2
 
 	      case STEIM2_123_MASK:
 		val = pf->w[wn].fw;
-		tswap4 ((uint32_t *) &val, swapflag);
+		if ( swapflag ) gswap4 (&val);
 		dnib =  val >> 30 & 0x3;
 		switch (dnib)
 		  {
@@ -520,7 +527,7 @@ int unpack_steim2
 
 	      case STEIM2_567_MASK:
 		val = pf->w[wn].fw;
-		tswap4 ((uint32_t *) &val, swapflag);
+		if ( swapflag ) gswap4 (&val);
 		dnib =  val >> 30 & 0x3;
 		switch (dnib)
 		  {
@@ -639,7 +646,7 @@ int unpack_int_16
 
     for (nd=0; nd<req_samples && nd<num_samples; nd++) {
 	stmp = ibuf[nd];
-	tswap2 ((uint16_t *) &stmp, swapflag);
+	if ( swapflag ) gswap2 (&stmp);
 	databuff[nd] = stmp;
     }
 
@@ -669,8 +676,8 @@ int unpack_int_32
     if (req_samples < 0) req_samples = -req_samples;
 
     for (nd=0; nd<req_samples && nd<num_samples; nd++) {
-	itmp = ibuf[nd];
-	tswap4 ((uint32_t *) &itmp, swapflag);
+        itmp = ibuf[nd];
+	if ( swapflag ) gswap4 (&itmp);
 	databuff[nd] = itmp;
     }
 

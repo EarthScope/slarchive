@@ -9,7 +9,7 @@
  * Originally based on the SeedLink interface of the modified Comserv in
  * SeisComP written by Andres Heinloo
  *
- * Version: 2004.222
+ * Version: 2005.103
  ***************************************************************************/
 
 #include <stdio.h>
@@ -66,8 +66,10 @@ sl_configlink (SLCD * slconn)
  * Negotiate a SeedLink connection in uni-station mode and issue
  * the DATA command.  This is compatible with SeedLink Protocol
  * version 2 or greater.
+ *
  * If 'selectors' != 0 then the string is parsed on space and each
  * selector is sent.
+ *
  * If 'seqnum' != -1 and the SLCD 'resume' flag is true then data is
  * requested starting at seqnum.
  *
@@ -252,8 +254,10 @@ sl_negotiate_uni (SLCD * slconn)
  * Negotiate a SeedLink connection using multi-station mode and 
  * issue the END action command.  This is compatible with SeedLink
  * Protocol version 3, multi-station mode.
+ *
  * If 'curstream->selectors' != 0 then the string is parsed on space
  * and each selector is sent.
+ *
  * If 'curstream->seqnum' != -1 and the SLCD 'resume' flag is true then data
  * is requested starting at
  * seqnum.
@@ -572,9 +576,11 @@ sl_send_info (SLCD * slconn, const char * info_level, int verbose)
  *
  * Open a network socket connection to a SeedLink server and set
  * 'slconn->link' to the new descriptor.  Expects 'slconn->sladdr' to
- * be in 'host:port' format.  Either the host or port is optional, if
- * the host is not specified 'localhost' is assumed, if the port is
- * not specified '18000' is assumed.
+ * be in 'host:port' format.  Either the host, port or both are
+ * optional, if the host is not specified 'localhost' is assumed, if
+ * the port is not specified '18000' is assumed, if neither is
+ * specified (only a colon) then 'localhost' and port '18000' are
+ * assumed.
  *
  * If sayhello is true the HELLO command will be issued after
  * successfully connecting, this sets the server version in the SLCD
@@ -606,10 +612,16 @@ sl_connect (SLCD * slconn, int sayhello)
   }
   
   /* Check server address string and use defaults if needed:
+   * If only ':' is specified neither host nor port specified
    * If no ':' is included no port was specified
    * If ':' is the first character no host was specified
    */
-  if ((ptr = strchr (slconn->sladdr, ':')) == NULL)
+  if ( ! strcmp (slconn->sladdr, ":") )
+    {
+      strcpy (nodename, "localhost");
+      strcpy (nodeport, "18000");
+    }
+  else if ((ptr = strchr (slconn->sladdr, ':')) == NULL)
     {
       strncpy (nodename, slconn->sladdr, sizeof(nodename));
       strcpy (nodeport, "18000");
@@ -663,16 +675,7 @@ sl_connect (SLCD * slconn, int sayhello)
       slp_sockclose (sock);
       return -1;
     }
-
-  /* Give 1/2 second for connecting, this is stupid but needed at the moment.
-     Some firewalls that proxy/NAT TCP connections will report that the TCP
-     connection is ready even when they are still opening the "other" end.
-     Maybe a new test should be implemented to test for readiness.
-   */
-  /* Hopefully this is not needed anymore
-  slp_usleep (500000);
-  */
-
+  
   /* Wait up to 10 seconds for the socket to be connected */
   if ((sockstat = sl_checksock (sock, 10, 0)) <= 0)
     {
@@ -689,18 +692,18 @@ sl_connect (SLCD * slconn, int sayhello)
       slp_sockclose (sock);
       return -1;
     }
-  else
+  else if ( ! slconn->terminate )
     {				/* socket connected */
       sl_log_r (slconn, 1, 1, "[%s] network socket opened\n", slconn->sladdr);
-
-      /* Set the SO_KEEPALIVE socket option, not really useful in this case */
+      
+      /* Set the SO_KEEPALIVE socket option, although not really useful */
       if (setsockopt
 	  (sock, SOL_SOCKET, SO_KEEPALIVE, (char *) &on, sizeof (on)) < 0)
 	sl_log_r (slconn, 1, 1, "[%s] cannot set SO_KEEPALIVE socket option\n",
 		  slconn->sladdr);
-
+      
       slconn->link = sock;
-
+      
       /* Everything should be connected, say hello if requested */
       if ( sayhello )
 	{
@@ -710,9 +713,11 @@ sl_connect (SLCD * slconn, int sayhello)
 	      return -1;
 	    }
 	}
-
+      
       return sock;
     }
+  
+  return -1;
 }  /* End of sl_connect() */
 
 
@@ -728,15 +733,8 @@ sl_disconnect (SLCD * slconn)
 {
   if (slconn->link != -1)
     {
-      if (slp_sockclose (slconn->link))
-	{
-	  sl_log_r (slconn, 2, 1, "[%s] slp_sockclose(%d) failed: %s\n", slconn->sladdr,
-		    slconn->link, slp_strerror ());
-	}
-      else
-	{
-	  slconn->link = -1;
-	}
+      slp_sockclose (slconn->link);
+      slconn->link = -1;
       
       sl_log_r (slconn, 1, 1, "[%s] network socket closed\n", slconn->sladdr);
     }
@@ -1055,6 +1053,12 @@ sl_recvresp (SLCD * slconn, void *buffer, size_t maxbytes,
   while ( bytesread < maxbytes )
     {
       recvret = sl_recvdata (slconn, (char *)buffer + bytesread, 1, ident);
+      
+      /* Trap door for termination */
+      if ( slconn->terminate )
+	{
+	  return -1;
+	}
       
       if ( recvret > 0 )
 	{

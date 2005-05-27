@@ -1,3 +1,30 @@
+2005.103: version 1.5
+	- Fixup some in-line comments.
+	- Add an SLP_PACKED defined to __attribute__ ((packed))
+	to slplatform.h when using the GCC compiler.
+	- Use the SLP_PACKED attribute where needed for portability
+	to the XScale (ARM) architecture.  Thanks Andres.
+
+2005.097: version 1.5pre2
+	- Modify sl_addstream() to NOT check for duplicate streams.
+	- Change Makefile and example/Makefile to include specific
+	targets for 'gcc'.  By default $CC is used with the '-O' flag.
+
+2005.089: version 1.5pre1
+	- Add msr_dnomsamprate() to calculate the nominal sampling
+	rate for an MSrecord, use it in msr_dsamprate().
+	- Include calculated sample rate in Hz in msr_print() output.
+	- Support for microsecond precision in record start time,
+	including msr_print() and msr_depochstime().
+	- 'host:port' parsing extended to include possibility of a single
+	colon translating to 'localhost:18000'.  The parsing is now:
+	  ':'       => 'localhost:18000'
+	  '<host>'  => '<host>:18000'
+	  ':<port>' => 'localhost:<port>'
+	- Better checking for termination during connection opening and 
+	negotiation, termination should occur without timeout experation.
+	- Use gswap routines instead of tswap routines.
+
 2004.222: version 1.4
 	- sl_connect will set the SLCD->terminate flag if a permanent
 	error (invalid port specified) was detected.  This way the 

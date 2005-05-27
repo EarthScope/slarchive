@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified: 2004.222
+ * modified: 2005.097
  ***************************************************************************/
 
 #include <stdlib.h>
@@ -14,7 +14,6 @@
 #include <string.h>
 
 #include "libslink.h"
-#include "tswap.h"
 
 /* Function(s) only used in this source file */
 int update_stream (SLCD * slconn, SLpacket * slpack);
@@ -770,13 +769,16 @@ update_stream (SLCD * slconn, SLpacket * slpack)
   memcpy (&fsdh, &slpack->msrecord, sizeof(struct fsdh_s));
 
   /* Check to see if byte swapping is needed (bogus year makes good test) */
-  if ((fsdh.start_time.year < 1960) || (fsdh.start_time.year > 2050))
+  if ((fsdh.start_time.year < 1900) || (fsdh.start_time.year > 2050))
     swapflag = 1;
   
   /* Change byte order? */
-  tswap2 ((uint16_t *) &fsdh.start_time.year, swapflag);
-  tswap2 ((uint16_t *) &fsdh.start_time.day, swapflag);
-  
+  if ( swapflag )
+    {
+      gswap2 (&fsdh.start_time.year);
+      gswap2 (&fsdh.start_time.day);
+    }
+
   curstream = slconn->streams;
 
   /* Generate some "clean" net and sta strings */
@@ -971,14 +973,13 @@ sl_freeslcd (SLCD * slconn)
  * sl_addstream:
  *
  * Add a new stream entry to the stream chain for the given SLCD
- * struct.  If the stream entry already exists do nothing and return 1.
- * Also sets the multistation flag to 1 (true).
+ * struct.  No checking is done for duplicate streams.
  *
  *  - selectors should be 0 if there are none to use
  *  - seqnum should be -1 to start at the next data
  *  - timestamp should be 0 if it should not be used
  *
- * Returns 0 if successfully added, 1 if it already exists or -1 on error.
+ * Returns 0 if successfully added or -1 on error.
  ***************************************************************************/
 int
 sl_addstream (SLCD * slconn, const char * net, const char * sta,
@@ -988,7 +989,6 @@ sl_addstream (SLCD * slconn, const char * net, const char * sta,
   SLstream *curstream;
   SLstream *newstream;
   SLstream *laststream = NULL;
-  int found = 0;
 
   curstream = slconn->streams;
 
@@ -1005,22 +1005,11 @@ sl_addstream (SLCD * slconn, const char * net, const char * sta,
   while (curstream != NULL)
     {
       laststream = curstream;
-
-      if (strcmp (curstream->net, net) == 0 &&
-	  strcmp (curstream->sta, sta) == 0)
-	{
-	  found = 1;
-	}
-
       curstream = curstream->next;
     }
-
-  /* Return if the stream already exists in the chain */
-  if ( found )
-    return 1;
-
+  
   newstream = (SLstream *) malloc (sizeof(SLstream));
-
+  
   if ( newstream == NULL )
     {
       sl_log_r (slconn, 2, 0, "sl_addstream(): error allocating memory\n");
