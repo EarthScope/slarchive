@@ -1,3 +1,10 @@
+2005.237:
+	- Search for a matching file name (glob) when opening archive
+	files using non-defining flags.  The problem was that stream
+        timeouts or slarchive re-starts cause files to be re-opened
+	generating new files using the non-defining flags as if they were
+	defining.
+
 2005.147: version 1.6
 	- Update to libslink 1.5.
 	- Add version to usage messages.
