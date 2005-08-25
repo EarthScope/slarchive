@@ -1,4 +1,4 @@
-.TH SLARCHIVE 1 2005/05/27
+.TH SLARCHIVE 1 2005/08/25
 .SH NAME
 slarchive \- SeedLink client for data stream archiving
 
@@ -91,6 +91,8 @@ desired overlap limit in seconds to the option.  If the overlap is
 exceeded an error message will be logged once for each time the file
 is opened.  This option only makes sense for archive formats where
 each unique data stream is written to a unique file (e.g. SDS format).
+If a data stream is closed due to timeout (see option -i) the initial
+future check will be preformed again if the file is re-opened.
 
 .IP "-Fc[:overlap]  "
 Future check continuously.  Only archive Mini-SEED data records if the
@@ -300,6 +302,16 @@ future checks will not function correctly if there is a time jump
 starting with the first packet in a new day file at midnight.  The
 chance of this occurring is very, very low, but the behavior should be
 noted nonetheless.
+
+The initial future check (-Fi) triggers slarchive to perform a future
+check whenever a file is opened.  An existing file can be re-opened if
+it has been closed due to an idle stream timeout.
+
+In general it is not a good idea to use non-defining modifier flags
+(those starting with '#') in directory names.  Doing this with data
+streams that are closed due to timeout and re-opened or slarchive
+restarts will result in empty directories being created.  This is such
+a fringe case that it will not be addressed any time soon.
 
 .SH "SEE ALSO"
 \fBslinktool\fP(1)

@@ -6,6 +6,8 @@
 #include <time.h>
 #include <libslink.h>
 
+#define MAX_FILENAME_LEN 400
+
 typedef struct DataStreamGroup_s
 {
   char   *defkey;
@@ -14,6 +16,7 @@ typedef struct DataStreamGroup_s
   double  lastsample;
   char    futurecontprint;
   char    futureinitprint;
+  char    filename[MAX_FILENAME_LEN];
   struct  DataStreamGroup_s *next;
 }
 DataStreamGroup;

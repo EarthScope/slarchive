@@ -10,7 +10,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2004.198
+ * modified: 2004.237
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -20,13 +20,15 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
+#include <glob.h>
 
 #include "dsarchive.h"
 
 /* Functions internal to this source file */
 static DataStreamGroup *ds_getstream (DataStream *datastream, MSrecord *msr,
 				      int reclen, const char *defkey,
-				      const char *filename);
+				      char *filename, int nondefflags,
+				      const char *globmatch);
 static int ds_openfile (DataStream *datastream, const char *filename);
 static int ds_closeidle (DataStream *datastream, int idletimeout);
 static void ds_shutdown (DataStream *datastream);
@@ -51,9 +53,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 {
   DataStreamGroup *foundgroup = NULL;
   strlist *fnlist, *fnptr;
+  char *tptr;
   char net[3], sta[6], loc[3], chan[4];
-  char filename[400];
-  char definition[400];
+  char filename[MAX_FILENAME_LEN];
+  char definition[MAX_FILENAME_LEN];
+  char globmatch[MAX_FILENAME_LEN];
+  int nondefflags = 0;
 
   /* Special case for stream shutdown */
   if ( pathformat == NULL && msr == NULL )
@@ -65,16 +70,27 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
   /* Build file path and name from pathformat */
   filename[0] = '\0';
   definition[0] = '\0';
+  globmatch[0] = '\0';
   strparse (pathformat, "/", &fnlist);
-
+  
   fnptr = fnlist;
-
+  
+  /* Count all of the non-defining flags */
+  tptr = pathformat;
+  while ( (tptr = strchr(tptr, '#')) )
+    {
+      if ( *(tptr+1) != '#' )
+	nondefflags++;
+      tptr++;
+    }
+  
   /* Special case of an absolute path (first entry is empty) */
   if ( *fnptr->element == '\0' )
     {
       if ( fnptr->next != 0 )
 	{
-	  strncat (filename, "/", sizeof(filename));
+	  strcat (filename, "/");
+	  strcat (globmatch, "/");
 	  fnptr = fnptr->next;
 	}
       else
@@ -84,11 +100,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	  return -1;
 	}
     }
-
+  
   while ( fnptr != 0 )
     {
-      int tdy;
       int fnlen = 0;
+      int globlen = 0;
+      int tdy;
       char *w, *p, def;
       char tstr[20];
 
@@ -107,9 +124,16 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	{
 	  def = ( *w == '%' );
 	  *w = '\0';
+
 	  strncat (filename, p, (sizeof(filename) - fnlen));
 	  fnlen = strlen (filename);
-
+	  
+	  if ( nondefflags > 0 )
+	    {
+	      strncat (globmatch, p, (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  
 	  w += 1;
 
 	  switch ( *w )
@@ -118,6 +142,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%c", sl_typecode(datastream->packettype));
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -125,6 +155,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      strncpclean (net, msr->fsdh.network, 2);
 	      strncat (filename, net, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, net, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, net, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -132,6 +168,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      strncpclean (sta, msr->fsdh.station, 5);
 	      strncat (filename, sta, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, sta, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, sta, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -139,6 +181,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      strncpclean (loc, msr->fsdh.location, 2);
 	      strncat (filename, loc, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, loc, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, loc, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -146,6 +194,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      strncpclean (chan, msr->fsdh.channel, 3);
 	      strncat (filename, chan, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, chan, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, chan, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -153,6 +207,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.year);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -165,6 +225,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%02d", tdy);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -172,6 +238,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%03d", (int) msr->fsdh.start_time.day);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -179,6 +251,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.hour);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -186,6 +264,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.min);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -193,6 +277,12 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.sec);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -200,16 +290,30 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.fract);
 	      strncat (filename, tstr, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
 	    case '%' :
 	      strncat (filename, "%", (sizeof(filename) - fnlen));
+	      strncat (globmatch, "%", (sizeof(globmatch) - globlen));
 	      fnlen = strlen (filename);
+	      globlen = strlen (globmatch);
 	      p = w + 1;
 	      break;
 	    case '#' :
 	      strncat (filename, "#", (sizeof(filename) - fnlen));
+	      nondefflags--;
+	      if ( nondefflags > 0 )
+		{
+		  strncat (globmatch, "#", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
@@ -222,7 +326,13 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
       
       strncat (filename, p, (sizeof(filename) - fnlen));
       fnlen = strlen (filename);
-
+      
+      if ( nondefflags > 0 )
+	{
+	  strncat (globmatch, p, (sizeof(globmatch) - globlen));
+	  globlen = strlen (globmatch);
+	}
+      
       /* If not the last entry then it should be a directory */
       if ( fnptr->next != 0 )
 	{
@@ -247,20 +357,27 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 		  return -1;
 		}
 	    }
-
+	  
 	  strncat (filename, "/", (sizeof(filename) - fnlen));
 	  fnlen++;
+	  
+	  if ( nondefflags > 0 )
+	    {
+	      strncat (globmatch, "/", (sizeof(globmatch) - globlen));
+	      globlen++;
+	    }
 	}
 
       fnptr = fnptr->next;
     }
 
   strparse (NULL, NULL, &fnlist);
-
+  
   /* Check for previously used stream entry, otherwise create it */
-  foundgroup = ds_getstream (datastream, msr, reclen, definition, filename);
-
-  if (foundgroup != NULL)
+  foundgroup = ds_getstream (datastream, msr, reclen, definition, filename,
+			     nondefflags, globmatch);
+  
+  if ( foundgroup != NULL )
     {
       /* Initial check (existing files) for future data, a negative
        * last sample time indicates it was derived from an existing
@@ -278,7 +395,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 		{
 		  sl_log (2, 0,
 			  "%d sec. overlap of existing archive data in %s, skipping\n",
-			  overlap, filename);
+			  overlap, foundgroup->filename);
 		  foundgroup->futureinitprint = 0;  /* Suppress further messages */
 		}
 	      
@@ -301,7 +418,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 		{
 		  sl_log (2, 0,
 			  "%d sec. overlap of continuous data for %s, skipping\n",
-			  overlap, filename);
+			  overlap, foundgroup->filename);
 		  foundgroup->futurecontprint = 0;  /* Suppress further messages */
 		}
 	      
@@ -312,7 +429,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	}
 
       /*  Write the record to the appropriate file */
-      sl_log (1, 3, "Writing data to data stream file %s\n", filename);
+      sl_log (1, 3, "Writing data to data stream file %s\n", foundgroup->filename);
       
       if ( !write (foundgroup->filed, msr->msrecord, reclen) )
 	{
@@ -352,12 +469,14 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
  ***************************************************************************/
 static DataStreamGroup *
 ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
-	      const char *defkey, const char *filename)
+	      const char *defkey, char *filename,
+	      int nondefflags, const char *globmatch)
 {
   DataStreamGroup *foundgroup  = NULL;
   DataStreamGroup *searchgroup = NULL;
   DataStreamGroup *prevgroup   = NULL;
   time_t curtime;
+  char *matchedfilename = 0;
   
   searchgroup = datastream->grouproot;
   curtime = time (NULL);
@@ -385,22 +504,64 @@ ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
       prevgroup = searchgroup;
       searchgroup = nextgroup;
     }
+  
+  /* If no matching stream entry was found but the format included
+     non-defining flags, try to use globmatch to find a matching file
+     and resurrect a stream entry */
+  if ( foundgroup == NULL && nondefflags > 0 )
+    {
+      glob_t pglob;
+      int rval;
 
+      sl_log (1, 3, "No stream entry found, searching for: %s\n", globmatch);
+      
+      rval = glob (globmatch, 0, NULL, &pglob);
+
+      if ( rval && rval != GLOB_NOMATCH )
+	{
+	  switch (rval)
+	    {
+	    case GLOB_ABORTED : sl_log (2, 1, "glob(): Unignored lower-level error\n");
+	    case GLOB_NOSPACE : sl_log (2, 1, "glob(): Not enough memory\n");    
+	    case GLOB_NOSYS : sl_log (2, 1, "glob(): Function not supported\n");
+	    default : sl_log (2, 1, "glob(): %d\n", rval);
+	    }
+	}
+      else if ( rval == 0 && pglob.gl_pathc > 0 )
+	{
+	  if ( pglob.gl_pathc > 1 )
+	    sl_log (1, 3, "Found %d files matching %s, using last match\n",
+		    pglob.gl_pathc, globmatch);
+
+	  matchedfilename = pglob.gl_pathv[pglob.gl_pathc-1];
+	  sl_log (1, 2, "Found matching file for non-defining flags: %s\n", matchedfilename);
+	  
+	  /* Now that we have a match use it instead of filename */
+	  filename = matchedfilename;
+	}
+      
+      globfree (&pglob);
+    }
+  
   /* If not found, create a stream entry */
   if ( foundgroup == NULL )
     {
-      sl_log (1, 2, "Creating data stream entry for key %s\n", defkey);
-
+      if ( matchedfilename )
+	sl_log (1, 2, "Resurrecting data stream entry for key %s\n", defkey);
+      else
+	sl_log (1, 2, "Creating data stream entry for key %s\n", defkey);
+      
       foundgroup = (DataStreamGroup *) malloc (sizeof (DataStreamGroup));
-
+      
       foundgroup->defkey = strdup (defkey);
       foundgroup->filed = 0;
       foundgroup->modtime = curtime;
       foundgroup->lastsample = 0.0;
       foundgroup->futurecontprint = datastream->futurecontflag;
       foundgroup->futureinitprint = datastream->futureinitflag;
+      strncpy (foundgroup->filename, filename, sizeof(foundgroup->filename));
       foundgroup->next = NULL;
-
+      
       /* Set the stream root if this is the first entry */
       if (datastream->grouproot == NULL)
 	{
