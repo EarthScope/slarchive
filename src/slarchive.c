@@ -20,7 +20,7 @@
 #include "archive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "1.7dev"
+#define VERSION   "1.7"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);

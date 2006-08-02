@@ -1,3 +1,6 @@
+2006.213: 1.7
+	- Release without changes after testing.
+
 2005.237:
 	- Search for a matching file name (glob) when opening archive
 	files using non-defining flags.  The problem was that stream
