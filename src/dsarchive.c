@@ -10,7 +10,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2004.237
+ * modified: 2005.237
  ***************************************************************************/
 
 #include <sys/types.h>
