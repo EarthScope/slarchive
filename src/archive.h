@@ -11,7 +11,7 @@
 #define BUD   3
 #define DLOG  4
 
-extern int  archstream_proc (DataStream *datastream, MSrecord *msr,
+extern int  archstream_proc (DataStream *datastream, SLMSrecord *msr,
 			     int reclen);
 
 #endif

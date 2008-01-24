@@ -1,12 +1,15 @@
 /***************************************************************************
  * slarchive.c
+ *
  * A SeedLink client for data collection and archiving.
  *
  * Connects to a SeedLink server, collects and archives data.
  *
- * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
+ * Written by Chad Trabant
+ *   ORFEUS/EC-Project MEREDIAN
+ *   IRIS Data Management Center
  *
- * modified 2005.147
+ * modified 2008.024
  ***************************************************************************/
 
 #include <stdio.h>
@@ -20,7 +23,7 @@
 #include "archive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "1.7"
+#define VERSION   "2.0"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);
@@ -127,7 +130,7 @@ main (int argc, char **argv)
 static void
 packet_handler (char *msrecord, int packet_type, int seqnum, int packet_size)
 {
-  static MSrecord * msr = NULL;
+  static SLMSrecord * msr = NULL;
 
   double dtime;			/* Epoch time */
   double secfrac;		/* Fractional part of epoch time */
@@ -156,10 +159,10 @@ packet_handler (char *msrecord, int packet_type, int seqnum, int packet_size)
   }
 
   /* Parse data record and print requested detail if any */
-  msr_parse (slconn->log, msrecord, &msr, 1, 0);
+  sl_msr_parse (slconn->log, msrecord, &msr, 1, 0);
   
   if ( ppackets )
-    msr_print (slconn->log, msr, ppackets - 1);
+    sl_msr_print (slconn->log, msr, ppackets - 1);
   
   /* Process waveform data and send it on */
   if ( packet_type == SLDATA )
@@ -214,7 +217,7 @@ parameter_proc (int argcount, char **argvec)
   char *timewin     = 0;
   char *tptr;
 
-  strlist *timelist;	   /* split the time window arg */
+  SLstrlist *timelist;	   /* split the time window arg */
 
   if (argcount <= 1)
     error++;
@@ -368,17 +371,17 @@ parameter_proc (int argcount, char **argvec)
 	  return -1;
 	}
 
-      if (strparse (timewin, ":", &timelist) > 2)
+      if (sl_strparse (timewin, ":", &timelist) > 2)
 	{
 	  sl_log (2, 0, "time window not in begin:[end] format\n");
-	  strparse (NULL, NULL, &timelist);
+	  sl_strparse (NULL, NULL, &timelist);
 	  return -1;
 	}
 
       if (strlen (timelist->element) == 0)
 	{
 	  sl_log (2, 0, "time window must specify a begin time\n");
-	  strparse (NULL, NULL, &timelist);
+	  sl_strparse (NULL, NULL, &timelist);
 	  return -1;
 	}
 
@@ -393,14 +396,14 @@ parameter_proc (int argcount, char **argvec)
 	  if (timelist->next != 0)
 	    {
 	      sl_log (2, 0, "malformed time window specification\n");
-	      strparse (NULL, NULL, &timelist);
+	      sl_strparse (NULL, NULL, &timelist);
 	      return -1;
 
 	    }
 	}
 
       /* Free the parsed list */
-      strparse (NULL, NULL, &timelist);
+      sl_strparse (NULL, NULL, &timelist);
     }
 
   /* Parse the 'multiselect' string following '-S' */

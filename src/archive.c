@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
  *
- * modified: 2004.197
+ * modified: 2008.024
  ***************************************************************************/
 
 #include <string.h>
@@ -24,7 +24,7 @@
  * Returns 0 on success, -1 on error.
  ***************************************************************************/
 int
-archstream_proc (DataStream *datastream, MSrecord *msr, int reclen)
+archstream_proc (DataStream *datastream, SLMSrecord *msr, int reclen)
 {
   char pathformat[400];
 

@@ -10,7 +10,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2007.183
+ * modified: 2008.024
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -25,14 +25,14 @@
 #include "dsarchive.h"
 
 /* Functions internal to this source file */
-static DataStreamGroup *ds_getstream (DataStream *datastream, MSrecord *msr,
+static DataStreamGroup *ds_getstream (DataStream *datastream, SLMSrecord *msr,
 				      int reclen, const char *defkey,
 				      char *filename, int nondefflags,
 				      const char *globmatch);
 static int ds_openfile (DataStream *datastream, const char *filename);
 static int ds_closeidle (DataStream *datastream, int idletimeout);
 static void ds_shutdown (DataStream *datastream);
-static double msr_lastsamptime (MSrecord *msr);
+static double sl_msr_lastsamptime (SLMSrecord *msr);
 static char sl_typecode (int type);
 
 
@@ -48,11 +48,11 @@ static char sl_typecode (int type);
  * Returns 0 on success, -1 on error.
  ***************************************************************************/
 extern int
-ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
+ds_streamproc (DataStream *datastream, char *pathformat, SLMSrecord *msr,
 	       int reclen)
 {
   DataStreamGroup *foundgroup = NULL;
-  strlist *fnlist, *fnptr;
+  SLstrlist *fnlist, *fnptr;
   char *tptr;
   char net[3], sta[6], loc[3], chan[4];
   char filename[MAX_FILENAME_LEN];
@@ -72,7 +72,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
   filename[0] = '\0';
   definition[0] = '\0';
   globmatch[0] = '\0';
-  strparse (pathformat, "/", &fnlist);
+  sl_strparse (pathformat, "/", &fnlist);
   
   fnptr = fnlist;
   
@@ -97,7 +97,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
       else
 	{
 	  sl_log (2, 0, "ds_streamproc(): empty path format\n");
-	  strparse (NULL, NULL, &fnlist);
+	  sl_strparse (NULL, NULL, &fnlist);
 	  return -1;
 	}
     }
@@ -117,7 +117,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	{
 	  sl_log (2, 0, "ds_streamproc(): no file name specified, only %s\n",
 		  filename);
-	  strparse (NULL, NULL, &fnlist);
+	  sl_strparse (NULL, NULL, &fnlist);
 	  return -1;
 	}
 
@@ -153,7 +153,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      p = w + 1;
 	      break;
 	    case 'n' :
-	      strncpclean (net, msr->fsdh.network, 2);
+	      sl_strncpclean (net, msr->fsdh.network, 2);
 	      strncat (filename, net, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, net, (sizeof(definition) - fnlen));
 	      if ( nondefflags > 0 )
@@ -166,7 +166,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      p = w + 1;
 	      break;
 	    case 's' :
-	      strncpclean (sta, msr->fsdh.station, 5);
+	      sl_strncpclean (sta, msr->fsdh.station, 5);
 	      strncat (filename, sta, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, sta, (sizeof(definition) - fnlen));
 	      if ( nondefflags > 0 )
@@ -179,7 +179,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      p = w + 1;
 	      break;
 	    case 'l' :
-	      strncpclean (loc, msr->fsdh.location, 2);
+	      sl_strncpclean (loc, msr->fsdh.location, 2);
 	      strncat (filename, loc, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, loc, (sizeof(definition) - fnlen));
 	      if ( nondefflags > 0 )
@@ -192,7 +192,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	      p = w + 1;
 	      break;
 	    case 'c' :
-	      strncpclean (chan, msr->fsdh.channel, 3);
+	      sl_strncpclean (chan, msr->fsdh.channel, 3);
 	      strncat (filename, chan, (sizeof(filename) - fnlen));
 	      if ( def ) strncat (definition, chan, (sizeof(definition) - fnlen));
 	      if ( nondefflags > 0 )
@@ -347,14 +347,14 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 		    {
 		      sl_log (2, 1, "ds_streamproc: mkdir(%s) %s\n", filename,
 			      strerror (errno));
-		      strparse (NULL, NULL, &fnlist);
+		      sl_strparse (NULL, NULL, &fnlist);
 		      return -1;
 		    }
 		}
 	      else
 		{
 		  sl_log (2, 0, "%s: access denied, %s\n", filename, strerror(errno));
-		  strparse (NULL, NULL, &fnlist);
+		  sl_strparse (NULL, NULL, &fnlist);
 		  return -1;
 		}
 	    }
@@ -372,7 +372,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
       fnptr = fnptr->next;
     }
 
-  strparse (NULL, NULL, &fnlist);
+  sl_strparse (NULL, NULL, &fnlist);
   
   /* Check for previously used stream entry, otherwise create it */
   foundgroup = ds_getstream (datastream, msr, reclen, definition, filename,
@@ -388,7 +388,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	   datastream->futureinitflag &&
 	   foundgroup->lastsample < 0 )
 	{
-	  int overlap = (int) ((-1.0 * foundgroup->lastsample) - msr_depochstime(msr));
+	  int overlap = (int) ((-1.0 * foundgroup->lastsample) - sl_msr_depochstime(msr));
 	  
 	  if ( overlap > datastream->futureinit )
 	    {
@@ -411,7 +411,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	   datastream->futurecontflag &&
 	   foundgroup->lastsample > 0 )
 	{
-	  int overlap = (int) (foundgroup->lastsample - msr_depochstime(msr));
+	  int overlap = (int) (foundgroup->lastsample - sl_msr_depochstime(msr));
 	  
           if ( overlap > datastream->futurecont )
 	    {
@@ -448,7 +448,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	  
 	  if ( datastream->packettype == SLDATA &&
 	       (datastream->futureinitflag || datastream->futurecontflag) )
-	    foundgroup->lastsample = msr_lastsamptime (msr);
+	    foundgroup->lastsample = sl_msr_lastsamptime (msr);
 	}
 
       return 0;
@@ -473,7 +473,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
  * Returns a pointer to a DataStreamGroup on success or NULL on error.
  ***************************************************************************/
 static DataStreamGroup *
-ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
+ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
 	      const char *defkey, char *filename,
 	      int nondefflags, const char *globmatch)
 {
@@ -621,7 +621,7 @@ ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
 	{
 	  if ( filepos >= reclen )
 	    {
-	      MSrecord *lmsr = NULL;
+	      SLMSrecord *lmsr = NULL;
 	      char *lrecord;
 	      
 	      sl_log (1, 2, "Reading last record in existing file\n");
@@ -642,10 +642,10 @@ ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
 		  return NULL;
 		}
 	      
-	      if ( msr_parse (NULL, lrecord, &lmsr, 0, 0) != NULL )
+	      if ( sl_msr_parse (NULL, lrecord, &lmsr, 0, 0) != NULL )
 		{
 		  /* A negative last sample time means it came from an existing file */
-		  foundgroup->lastsample = (-1 * msr_lastsamptime (lmsr));
+		  foundgroup->lastsample = (-1 * sl_msr_lastsamptime (lmsr));
 		}
 	      else
 		{
@@ -653,7 +653,7 @@ ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
 		  foundgroup->lastsample = 0.0;
 		}
 
-	      msr_free (&lmsr);
+	      sl_msr_free (&lmsr);
 	      free (lrecord);
 	    }
 	}
@@ -843,7 +843,7 @@ ds_shutdown (DataStream *datastream)
 
 
 /***************************************************************************
- * msr_lastsamptime:
+ * sl_msr_lastsamptime:
  *
  * Calculate the time of the last sample in the record; this is the actual
  * last sample time and *not* the time "covered" by the last sample.
@@ -851,21 +851,21 @@ ds_shutdown (DataStream *datastream)
  * Returns the time of the last sample as a double precision epoch time.
  ***************************************************************************/
 double
-msr_lastsamptime (MSrecord *msr)
+sl_msr_lastsamptime (SLMSrecord *msr)
 {
   double startepoch;
   double dsamprate;
   double span = 0.0;
   
-  msr_dsamprate (msr, &dsamprate);
+  sl_msr_dsamprate (msr, &dsamprate);
   
   if ( dsamprate )
     span = (double) (msr->fsdh.num_samples - 1 ) * (1.0 / dsamprate);
   
-  startepoch = msr_depochstime(msr);
+  startepoch = sl_msr_depochstime(msr);
   
   return (startepoch + span);
-}				/* End of msr_lastsamptime() */
+}				/* End of sl_msr_lastsamptime() */
 
 
 /***************************************************************************

@@ -36,6 +36,6 @@ typedef struct DataStream_s
 DataStream;
 
 extern int ds_streamproc (DataStream *datastream, char *pathformat,
-			  MSrecord *msr, int reclen);
+			  SLMSrecord *msr, int reclen);
 #endif
 
