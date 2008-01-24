@@ -1,3 +1,7 @@
+2007.183:
+	- Improved error handling, mostly in the case of interrupted
+	system calls (due to signals) in dsarchive.c.
+
 2006.213: 1.7
 	- Release without changes after testing.
 

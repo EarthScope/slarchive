@@ -10,7 +10,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2005.237
+ * modified: 2007.183
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -58,6 +58,7 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
   char filename[MAX_FILENAME_LEN];
   char definition[MAX_FILENAME_LEN];
   char globmatch[MAX_FILENAME_LEN];
+  int written;
   int nondefflags = 0;
 
   /* Special case for stream shutdown */
@@ -427,14 +428,18 @@ ds_streamproc (DataStream *datastream, char *pathformat, MSrecord *msr,
 	  else if ( foundgroup->futurecontprint == 0 )
 	    foundgroup->futurecontprint = 1;  /* Reset message printing */
 	}
-
+      
       /*  Write the record to the appropriate file */
       sl_log (1, 3, "Writing data to data stream file %s\n", foundgroup->filename);
       
-      if ( !write (foundgroup->filed, msr->msrecord, reclen) )
+      if ( (written = write (foundgroup->filed, msr->msrecord, reclen)) != reclen )
 	{
-	  sl_log (2, 1,
-		  "ds_streamproc: failed to write record\n");
+          if ( written < 0 )
+            sl_log (2, 1, "ds_streamproc: failed to write record: %s (%s)\n",
+		    strerror(errno), foundgroup->filename);
+          else
+            sl_log (2, 1, "ds_streamproc: partial write, only wrote %d of %d bytes (%s)\n",
+		    written, reclen, foundgroup->filename);
 	  return -1;
 	}
       else
@@ -591,7 +596,11 @@ ds_getstream (DataStream *datastream, MSrecord *msr, int reclen,
       
       if ( (foundgroup->filed = ds_openfile (datastream, filename)) == -1 )
 	{
-	  sl_log (2, 0, "cannot open data stream file, %s\n", strerror (errno));
+	  /* Do not complain about interrupted calls (signals used for shutdown) */
+          if ( errno == EINTR )
+            foundgroup->filed = 0;
+	  else
+	    sl_log (2, 0, "cannot open data stream file, %s\n", strerror (errno));
 	  return NULL;
 	}
       
@@ -812,19 +821,20 @@ ds_shutdown (DataStream *datastream)
 {
   DataStreamGroup *curgroup = NULL;
   DataStreamGroup *prevgroup = NULL;
-
+  
   curgroup = datastream->grouproot;
 
   while ( curgroup != NULL )
     {
       prevgroup = curgroup;
       curgroup = curgroup->next;
-
+      
       sl_log (1, 3, "Shutting down stream with key: %s\n", prevgroup->defkey);
-
-      if ( close (prevgroup->filed) )
-	sl_log (2, 0, "ds_shutdown(), closing data stream file, %s\n",
-		strerror (errno));
+      
+      if ( prevgroup->filed )
+	if ( close (prevgroup->filed) )
+	  sl_log (2, 0, "ds_shutdown(), closing data stream file, %s\n",
+		  strerror (errno));
       
       free (prevgroup->defkey);
       free (prevgroup);
