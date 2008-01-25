@@ -14,7 +14,7 @@ LDLIBS  = -lslink
 
 BIN  = ../slarchive
 
-OBJS = dsarchive.o archive.o slarchive.o
+OBJS = dsarchive.o slarchive.o
 
 all: $(BIN)
 

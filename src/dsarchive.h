@@ -6,7 +6,16 @@
 #include <time.h>
 #include <libslink.h>
 
+/* Maximum file name length for output files */
 #define MAX_FILENAME_LEN 400
+
+/* Define pre-formatted archive layouts */
+#define SDSLAYOUT   "%Y/%n/%s/%c.%t/%n.%s.%l.%c.%t.%Y.%j"
+#define BUDLAYOUT   "%n/%s/%s.%n.%l.%c.%Y.%j"
+#define CSSLAYOUT   "%Y/%j/%s.%c.%Y:%j:#H:#M:#S"
+#define CHANLAYOUT  "%n.%s.%l.%c"
+#define QCHANLAYOUT "%n.%s.%l.%c.%q"
+#define CDAYLAYOUT  "%n.%s.%l.%c.%Y:%j:#H:#M:#S"
 
 typedef struct DataStreamGroup_s
 {
@@ -24,7 +33,6 @@ DataStreamGroup;
 typedef struct DataStream_s
 {
   char   *path;
-  char    archivetype;
   char    packettype;
   int     idletimeout;
   char    futurecontflag;
@@ -35,7 +43,6 @@ typedef struct DataStream_s
 }
 DataStream;
 
-extern int ds_streamproc (DataStream *datastream, char *pathformat,
-			  SLMSrecord *msr, int reclen);
-#endif
+extern int ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix);
 
+#endif

@@ -41,37 +41,44 @@ static char sl_typecode (int type);
  *
  * Save MiniSEED records in a custom directory/file structure.  The
  * appropriate directories and files are created if nesecessary.  If
- * files already exist they are appended to.  If both 'pathformat' and
- * 'msr' are NULL then ds_shutdown() will be called to close all open files
- * and free all associated memory.
+ * files already exist they are appended to.  If 'msr' is NULL then
+ * ds_shutdown() will be called to close all open files and free all
+ * associated memory.
  *
  * Returns 0 on success, -1 on error.
  ***************************************************************************/
 extern int
-ds_streamproc (DataStream *datastream, char *pathformat, SLMSrecord *msr,
-	       int reclen)
+ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 {
   DataStreamGroup *foundgroup = NULL;
   SLstrlist *fnlist, *fnptr;
   char *tptr;
+  char tstr[20];
   char net[3], sta[6], loc[3], chan[4];
   char filename[MAX_FILENAME_LEN];
   char definition[MAX_FILENAME_LEN];
+  char pathformat[MAX_FILENAME_LEN];
   char globmatch[MAX_FILENAME_LEN];
+  int fnlen = 0;
   int written;
   int nondefflags = 0;
-
+  
+  int reclen = SLRECSIZE;
+  
   /* Special case for stream shutdown */
-  if ( pathformat == NULL && msr == NULL )
+  if ( ! msr )
     {
+      sl_log (1, 2, "Closing archive for %s\n", datastream->path);
+      
       ds_shutdown ( datastream );
       return 0;
     }
-
+  
   /* Build file path and name from pathformat */
   filename[0] = '\0';
   definition[0] = '\0';
   globmatch[0] = '\0';
+  snprintf (pathformat, sizeof(pathformat), "%s", datastream->path);
   sl_strparse (pathformat, "/", &fnlist);
   
   fnptr = fnlist;
@@ -104,11 +111,10 @@ ds_streamproc (DataStream *datastream, char *pathformat, SLMSrecord *msr,
   
   while ( fnptr != 0 )
     {
-      int fnlen = 0;
       int globlen = 0;
       int tdy;
       char *w, *p, def;
-      char tstr[20];
+      double dsamprate = 0.0;
 
       p = fnptr->element;
 
@@ -300,6 +306,60 @@ ds_streamproc (DataStream *datastream, char *pathformat, SLMSrecord *msr,
 	      fnlen = strlen (filename);
 	      p = w + 1;
 	      break;
+	    case 'q' :
+	      snprintf (tstr, sizeof(tstr), "%c", msr->fsdh.dhq_indicator);
+	      strncat (filename, tstr, (sizeof(filename) - fnlen));
+	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
+	      fnlen = strlen (filename);
+	      p = w + 1;
+	      break;
+	    case 'L' :
+	      snprintf (tstr, sizeof(tstr), "%d", SLRECSIZE);
+	      strncat (filename, tstr, (sizeof(filename) - fnlen));
+	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
+	      fnlen = strlen (filename);
+	      p = w + 1;
+	      break;
+	    case 'r' :
+	      sl_msr_dsamprate (msr, &dsamprate);
+	      snprintf (tstr, sizeof(tstr), "%ld", (long int) (dsamprate+0.5));
+	      strncat (filename, tstr, (sizeof(filename) - fnlen));
+	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
+	      fnlen = strlen (filename);
+	      p = w + 1;
+	      break;
+	    case 'R' :
+	      sl_msr_dsamprate (msr, &dsamprate);
+	      snprintf (tstr, sizeof(tstr), "%.6f", dsamprate);
+	      strncat (filename, tstr, (sizeof(filename) - fnlen));
+	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	      if ( nondefflags > 0 )
+		{
+		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+		  globlen = strlen (globmatch);
+		}
+	      fnlen = strlen (filename);
+	      p = w + 1;
+	      break;
 	    case '%' :
 	      strncat (filename, "%", (sizeof(filename) - fnlen));
 	      strncat (globmatch, "%", (sizeof(globmatch) - globlen));
@@ -373,6 +433,19 @@ ds_streamproc (DataStream *datastream, char *pathformat, SLMSrecord *msr,
     }
 
   sl_strparse (NULL, NULL, &fnlist);
+  
+  /* Add ".suffix" to filename and definition if suffix is not 0 */
+  if ( suffix )
+    {
+      snprintf (tstr, sizeof(tstr), ".%ld", suffix);
+      strncat (filename, tstr, (sizeof(filename) - fnlen));
+      strncat (definition, tstr, (sizeof(definition) - fnlen));
+      fnlen = strlen (filename);
+    }
+  
+  /* Make sure the filename and definition are NULL terminated */
+  *(filename + sizeof(filename) - 1) = '\0';
+  *(definition + sizeof(definition) - 1) = '\0';
   
   /* Check for previously used stream entry, otherwise create it */
   foundgroup = ds_getstream (datastream, msr, reclen, definition, filename,

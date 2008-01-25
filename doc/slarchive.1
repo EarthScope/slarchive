@@ -1,4 +1,4 @@
-.TH SLARCHIVE 1 2005/08/25
+.TH SLARCHIVE 1 2008/01/24
 .SH NAME
 slarchive \- SeedLink client for data stream archiving
 
@@ -13,9 +13,8 @@ streams and writes received packets into directory/file structures.
 The precise layout of the directories and files is defined in a
 \fIformat\fP string.  Some preset file layouts are included: the
 SeisComP Data Structure (SDS), Buffer of Uniform Data structure (BUD)
-and the old SeisComP/datalog structure (DLOG) for backwards
-compatibility.  To write more than one archive simply specify multiple
-\fIformat\fP definitions (or presets).
+and a few others.  To write more than one archive simply specify
+multiple \fIformat\fP definitions (or presets).
 
 .SH OPTIONS
 
@@ -24,6 +23,10 @@ Print program version and exit.
 
 .IP "-h         "
 Print program usage and exit.
+
+.IP "-H         "
+Print program usage including details for the replacement flags used
+with the \fI-A\fP option and exit.
 
 .IP "-v         "
 Be more verbose.  This flag can be used multiple times ("-v -v" or
@@ -106,6 +109,35 @@ archive file is used.  This option only makes sense for archive
 formats where each unique data stream is written to a unique file
 (e.g. SDS format).
 
+.IP "-s \fIselectors\fR"
+This defines default selectors.  If no multi-station data streams are
+configured these selectors will be used for uni/all-station mode.
+Otherwise these selectors will be used when no selectors are specified
+for a given stream using the '-S' or '-l' options.
+
+.IP "-l \fIlistfile\fR"
+A list of streams will be read from the given file.  This option
+implies multi-station mode.  The format of the stream list file is
+given below in the section \fIStream list file\fR.
+
+.IP "-S \fIstream[:selectors],...\fR  (requires SeedLink >= 2.5)"
+The connection will be configured in multi-station mode with optional
+SeedLink selectors for each station, see examples below.  \fIstream\fR
+should be provided in NET_STA format.  If supported by the server
+the '*' or '?' wildcards may be used in the NET_STA designation.  If
+no selectors are provided for a given stream, the default selectors,
+if defined, will be used.
+
+.IP "-tw \fIstart:[end]\fR  (requires SeedLink >= 3)"
+Specifies a time window applied, by the server, to data streams.  The
+format for both times is year,month,day,hour,min,sec; for example:
+"2002,08,05,14,00:2002,08,05,14,15,00".  The end time is optional but
+the colon must be present.  If no end time is specified the server
+will send data indefinately.  This option will override any saved
+state information.
+
+Warning: time windowing might be disabled on the remote server.
+
 .IP "-A \fIformat\fR"
 If specified, all packets (Mini-SEED records) received will be
 appended to a directory/file structure defined by \fBformat\fP.  All
@@ -117,8 +149,8 @@ packets to multiple archives.  See the section \fIArchiving data\fR.
 If specified, all packets (Mini-SEED records) received will be saved
 into a Simple Data Structure (SDS) dir/file structure starting at the
 specified directory.  This directory and all subdirectories will be
-created if necessary.  This option is essentially a preset version of
-the '-A' option.  The SDS dir/file structure is:
+created if necessary.  This option is a preset version of the '-A'
+option.  The SDS dir/file structure is:
 .nf
 <SDSdir>/<YEAR>/<NET>/<STA>/<CHAN.TYPE>/NET.STA.LOC.CHAN.TYPE.YEAR.DAY
 .fi
@@ -127,49 +159,51 @@ the '-A' option.  The SDS dir/file structure is:
 If specified, all waveform data packets (Mini-SEED data records)
 received will be saved into a Buffer of Uniform Data (BUD) dir/file
 structure starting at the specified directory.  This directory and all
-subdirectories will be created if necessary.  This option is
-essentially a preset version of the '-A' option.  The BUD dir/file
-structure is:
+subdirectories will be created if necessary.  This option is a preset
+version of the '-A' option.  The BUD dir/file structure is:
 .nf
 <BUDdir>/<NET>/<STA>/STA.NET.LOC.CHAN.YEAR.DAY
 .fi
 
-.IP "-DLOG \fIDLOGdir\fR"
+.IP "-CSS \fICSSdir\fR"
 If specified, all packets (Mini-SEED data records) received will be
-saved into an old style SeisComP/datalog dir/file structure starting
-at the specified directory.  This directory and all subdirectories
-will be created if necessary.  This option is essentially a preset
-version of the '-A' option.  The DLOG dir/file structure is:
+saved into a CSS-like data file structure starting at the specified
+directory.  This directory and all subdirectories will be created if
+necessary.  This option is a preset version of the '-A' option.  The
+CSS dir/file structure is:
 .nf
-<DLOGdir>/<STA>/[LOC.]<CHAN>.<TYPE>/STA.NET.CHAN.TYPE.YEAR.DAY.HHMM
+<CSSdir>/<YEAR>/<DAY>/STA.CHAN.YEAR:DAY:HOUR:MIN:SEC
+.fi
+where the HOUR, MIN & SEC fields are non-defining substitutions.
+
+.IP "-CHAN \fIdir\fR"
+If specified, all packets (Mini-SEED data records) received will be
+saved into channel files in the specified directory.  This directory
+will be created if necessary.  This option is a preset version of
+the '-A' option.  The CHAN dir/file structure is:
+.nf
+<dir>/NET.STA.LOC.CHAN
 .fi
 
-.IP "-l \fIstreamfile\fR"
-A list of streams will be read from the given file.  This option
-implies multi-station mode.  The format of the stream list file is
-given below in the section \fIStream list file\fR.
+.IP "-QCHAN \fIdir\fR"
+If specified, all packets (Mini-SEED data records) received will be
+saved into channel files including the data quality identifier in the
+specified directory.  This directory will be created if necessary.
+This option is a preset version of the '-A' option.  The QCHAN dir/file
+structure is:
+.nf
+<dir>/NET.STA.LOC.CHAN.QUALITY
+.fi
 
-.IP "-s \fIselectors\fR"
-This defines default selectors.  If no multi-station data streams are
-configured these selectors will be used for uni-station mode.
-Otherwise these selectors will be used when no selectors are specified
-for a given stream using the '-S' or '-l' options.
-
-.IP "-S \fIstream[:selectors],...\fR  (requires SeedLink >= 2.5)"
-The connection will be configured in multi-station mode with optional
-SeedLink selectors for each station, see examples below.  \fIstream\fR
-should be provided in NET_STA format.  If no selectors are provided
-for a given stream, the default selectors, if defined, will be used.
-
-.IP "-tw \fIstart:[end]\fR  (requires SeedLink >= 3)"
-Specifies a time window applied, by the server, to data streams.  The
-format for both times is year,month,day,hour,min,sec; for example:
-"2002,08,05,14,00:2002,08,05,14,15,00".  The end time is optional but
-the colon must be present.  If no end time is specified the server
-will send data indefinately.  This option will override any saved
-state information.
-
-Warning: time windowing might be disabled on the remote server.
+.IP "-CDAY \fIdir\fR"
+If specified, all packets (Mini-SEED data records) received will be
+saved into channel-day files in the specified directory.  This
+directory will be created if necessary.  This option is a preset
+version of the '-A' option.  The CDAY dir/file structure is:
+.nf
+<dir>/NET.STA.LOC.CHAN.YEAR.DAY:HOUR:MIN:SEC
+.fi
+where the HOUR, MIN & SEC fields are non-defining substitutions.
 
 .IP "\fI[host][:][port]\fR"
 A required argument, specifies the address of the SeedLink server in
@@ -221,6 +255,10 @@ flags:
   \fBM\fP : minute, 2 digits zero padded
   \fBS\fP : second, 2 digits zero padded
   \fBF\fP : fractional seconds, 4 digits zero padded
+  \fBq\fP : record quality indicator (D,R,Q,M), single character
+  \fBL\fP : data record length in bytes
+  \fBr\fP : sample rate (Hz) as a rounded integer
+  \fBR\fP : sample rate (Hz) as a float with 6 digit precision
   \fB%\fP : the percent (%) character
   \fB#\fP : the number (#) character
   \fBt\fP : single character type code:
@@ -284,6 +322,7 @@ specified for a given stream.  An example file follows:
 GE ISP  BH?.D
 NL HGN
 MN AQU  BH? HH?
+II *    BHZ
 ----  End example file -----
 .fi
 
@@ -316,13 +355,8 @@ a fringe case that it will not be addressed any time soon.
 .SH "SEE ALSO"
 \fBslinktool\fP(1)
 
-.SH "NOTES"
-SeedLink is currently distributed as part of the SeisComP
-(Seismological Communication Processor) package.  For more
-information see, http://www.gfz-potsdam.de/geofon/
-
 .SH AUTHOR
 .nf
 Chad Trabant
-ORFEUS Data Center/EC-Project MEREDIAN
+IRIS Data Management Center
 .fi

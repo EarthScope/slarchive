@@ -20,19 +20,19 @@
 
 #include <libslink.h>
 
-#include "archive.h"
+#include "dsarchive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "2.0"
+#define VERSION   "2.0beta"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);
 static int  parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
-static int  add_dsarchive(const char *path, int archivetype);
+static int  addarchive(const char *path, const char *layout);
 static void term_handler (int sig);
 static void print_timelog (const char *msg);
-static void usage (void);
+static void usage (int level);
 
 /* A chain of archive definitions */
 typedef struct DSArchive_s {
@@ -111,9 +111,9 @@ main (int argc, char **argv)
     DSArchive *curdsa = dsarchive;
 
     while ( curdsa != NULL ) {
-      archstream_proc (&curdsa->datastream, NULL, 0);
+      ds_streamproc (&curdsa->datastream, NULL, 0);
       curdsa = curdsa->next;
-    }    
+    }
   }
 
   if (statefile)
@@ -175,18 +175,11 @@ packet_handler (char *msrecord, int packet_type, int seqnum, int packet_size)
   /* Write packet to all archives in archive definition chain */
   if ( dsarchive && archflag ) {
     DSArchive *curdsa = dsarchive;
-
+    
     while ( curdsa != NULL ) {
       curdsa->datastream.packettype = packet_type;
-
-      /* Limit BUD archiving to waveform data */
-      if ( curdsa->datastream.archivetype == BUD &&
-	   packet_type != SLDATA ) {
-	curdsa = curdsa->next;
-	continue;
-      }
-
-      archstream_proc (&curdsa->datastream, msr, packet_size);
+      
+      ds_streamproc (&curdsa->datastream, msr, 0);
       
       curdsa = curdsa->next;
     }
@@ -227,12 +220,17 @@ parameter_proc (int argcount, char **argvec)
     {
       if (strcmp (argvec[optind], "-V") == 0)
         {
-          fprintf(stderr, "%s version: %s\n", PACKAGE, VERSION);
+          fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
           exit (0);
         }
       else if (strcmp (argvec[optind], "-h") == 0)
         {
-          usage();
+          usage (0);
+          exit (0);
+        }
+      else if (strcmp (argvec[optind], "-H") == 0)
+        {
+          usage (1);
           exit (0);
         }
       else if (strncmp (argvec[optind], "-v", 2) == 0)
@@ -277,22 +275,37 @@ parameter_proc (int argcount, char **argvec)
 	}
       else if (strcmp (argvec[optind], "-A") == 0)
 	{
-	  if ( add_dsarchive(getoptval(argcount, argvec, optind++), ARCH) == -1 )
+	  if ( addarchive(getoptval(argcount, argvec, optind++), NULL) == -1 )
 	    return -1;
 	}
       else if (strcmp (argvec[optind], "-SDS") == 0)
 	{
-	  if ( add_dsarchive(getoptval(argcount, argvec, optind++), SDS) == -1 )
+	  if ( addarchive(getoptval(argcount, argvec, optind++), SDSLAYOUT) == -1 )
 	    return -1;
 	}
       else if (strcmp (argvec[optind], "-BUD") == 0)
 	{
-	  if ( add_dsarchive(getoptval(argcount, argvec, optind++), BUD) == -1 )
+	  if ( addarchive(getoptval(argcount, argvec, optind++), BUDLAYOUT) == -1 )
 	    return -1;
 	}
-      else if (strcmp (argvec[optind], "-DLOG") == 0)
+      else if (strcmp (argvec[optind], "-CSS") == 0)
 	{
-	  if ( add_dsarchive(getoptval(argcount, argvec, optind++), DLOG) == -1 )
+	  if ( addarchive(getoptval(argcount, argvec, optind++), CSSLAYOUT) == -1 )
+	    return -1;
+	}
+      else if (strcmp (argvec[optind], "-CHAN") == 0)
+	{
+	  if ( addarchive(getoptval(argcount, argvec, optind++), CHANLAYOUT) == -1 )
+	    return -1;
+	}
+      else if (strcmp (argvec[optind], "-QCHAN") == 0)
+	{
+	  if ( addarchive(getoptval(argcount, argvec, optind++), QCHANLAYOUT) == -1 )
+	    return -1;
+	}
+      else if (strcmp (argvec[optind], "-CDAY") == 0)
+	{
+	  if ( addarchive(getoptval(argcount, argvec, optind++), CDAYLAYOUT) == -1 )
 	    return -1;
 	}
       else if (strcmp (argvec[optind], "-l") == 0)
@@ -351,9 +364,9 @@ parameter_proc (int argcount, char **argvec)
   sl_log (1, 1, "%s version: %s\n", PACKAGE, VERSION);
 
   /* If errors then report the usage message and quit */
-  if (error)
+  if ( error )
     {
-      usage ();
+      usage (0);
       exit (1);
     }
   
@@ -493,38 +506,56 @@ getoptval (int argcount, char **argvec, int argopt)
 
 
 /***************************************************************************
- * add_dsarchive():
- * Add entry to the data stream archive chain.
+ * addarchive():
+ *
+ * Add entry to the data stream archive chain.  If 'layout' is defined
+ * it will be appended to 'path'.
  *
  * Returns 0 on success, and -1 on failure
  ***************************************************************************/
 static int
-add_dsarchive( const char *path, int archivetype )
+addarchive ( const char *path, const char *layout )
 {
   DSArchive *newdsa;
+  int pathlayout;
 
-  newdsa = (DSArchive *) malloc (sizeof (DSArchive));
+  if ( ! path )
+    {
+      sl_log (2, 0, "addarchive(): cannot add archive with empty path\n");
+      return -1;
+    }
+
+  if ( ! (newdsa = (DSArchive *) malloc (sizeof (DSArchive))) )
+    {
+      sl_log (2, 0, "cannot allocate memory for new archive definition\n");
+      return -1;
+    }
   
-  if ( newdsa == NULL ) {
-    sl_log (2, 0, "cannot allocate memory for new archive definition\n");
-    return -1;
-  }
-
   /* Setup new entry and add it to the front of the chain */
-  newdsa->datastream.path = strdup(path);
-  newdsa->datastream.archivetype = archivetype;
+  pathlayout = strlen (path) + 2;
+  if ( layout )
+    pathlayout += strlen (layout);
+  
+  if ( ! (newdsa->datastream.path = (char *) malloc (pathlayout)) )
+    {
+      sl_log (2, 0, "cannot allocate memory for new archive path\n");
+      if ( newdsa )
+	free (newdsa);
+      return -1;
+    }
+  
+  if ( layout )
+    snprintf (newdsa->datastream.path, pathlayout, "%s/%s", path, layout);
+  else
+    snprintf (newdsa->datastream.path, pathlayout, "%s", path);
+  
   newdsa->datastream.grouproot = NULL;
-
-  if ( newdsa->datastream.path == NULL ) {
-    sl_log (2, 0, "cannot allocate memory for new archive path\n");
-    return -1;
-  }
-
+  
   newdsa->next = dsarchive;
   dsarchive = newdsa;
-
+  
   return 0;
-}  /* End of add_dsarchive() */
+}  /* End of addarchive() */
 
 
 /***************************************************************************
@@ -563,30 +594,31 @@ print_timelog (const char *msg)
  * Print the usage message and exit.
  ***************************************************************************/
 static void
-usage (void)
+usage (int level)
 {
   fprintf (stderr, "%s version %s\n\n", PACKAGE, VERSION);
   fprintf (stderr, "Usage: %s [options] [host][:][port]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## General program options ##\n"
-	   " -V              report program version\n"
-	   " -h              show this usage message\n"
-	   " -v              be more verbose, multiple flags can be used\n"
-	   " -p              print details of data packets, multiple flags can be used\n"
-	   " -nd delay       network re-connect delay (seconds), default 30\n"
-	   " -nt timeout     network timeout (seconds), re-establish connection if no\n"
+	   " -V              Report program version\n"
+	   " -h              Print this usage message\n"
+           " -H              Print usage message with 'format' details (see -A option)\n"
+	   " -v              Be more verbose, multiple flags can be used\n"
+	   " -p              Print details of data packets, multiple flags can be used\n"
+	   " -nd delay       Network re-connect delay (seconds), default 30\n"
+	   " -nt timeout     Network timeout (seconds), re-establish connection if no\n"
 	   "                   data/keepalives are received in this time, default 600\n"
-	   " -k interval     send keepalive (heartbeat) packets this often (seconds)\n"
-	   " -x sfile[:int]  save/restore stream state information to this file\n"
-	   " -i timeout      idle stream entries might be closed (seconds), default 300\n"
-	   " -d             configure the connection in dial-up mode\n"
+	   " -k interval     Send keepalive (heartbeat) packets this often (seconds)\n"
+	   " -x sfile[:int]  Save/restore stream state information to this file\n"
+	   " -i timeout      Idle stream entries might be closed (seconds), default 300\n"
+	   " -d              Configure the connection in dial-up mode\n"
 	   " -Fi[:overlap]   Initially check (existing files) that data records are newer\n"
 	   " -Fc[:overlap]   Continuously check that data records are newer\n"
 	   "\n"
 	   " ## Data stream selection ##\n"
-	   " -s selectors    selectors for uni-station or default for multi-station mode\n"
-	   " -l listfile     read a stream list from this file for multi-station mode\n"
-           " -S streams      define a stream list for multi-station mode\n"
+	   " -s selectors    Selectors for uni/all-station or default for multi-station mode\n"
+	   " -l listfile     Read a stream list from this file for multi-station mode\n"
+           " -S streams      Define a stream list for multi-station mode\n"
 	   "   'streams' = 'stream1[:selectors1],stream2[:selectors2],...'\n"
 	   "        'stream' is in NET_STA format, for example:\n"
 	   "        -S \"IU_KONO:BHE BHN,GE_WLF,MN_AQU:HH?.D\"\n\n"
@@ -596,13 +628,47 @@ usage (void)
 	   "        the end time is optional, but the colon must be present\n"
 	   "\n"
 	   " ## Data archiving options ##\n"
-	   " -A format       save all received records is a custom file structure\n"
-	   " -SDS  SDSdir    save all received records in a SDS file structure\n"
-	   " -BUD  BUDdir    save all received data records in a BUD file structure\n"
-	   " -DLOG DLOGdir   save all received data records in an old-style\n"
-	   "                   SeisComP/datalog file structure\n"
+	   " -A format       Write records is a custom file structure (try -H)\n"
+	   " -SDS SDSdir     Write records in a SDS file structure\n"
+	   " -BUD BUDdir     Write records in a BUD file layout\n"
+	   " -CSS CSSdir     Write records in a CSS-like file layout\n"
+	   " -CHAN dir       Write records into separate Net.Sta.Loc.Chan files\n"
+	   " -QCHAN dir      Write records into separate Net.Sta.Loc.Chan.Quality files\n"
+	   " -CDAY dir       Write records into separate Net.Sta.Loc.Chan-day files\n"	   
 	   "\n"
 	   " [host][:][port] Address of the SeedLink server in host:port format\n"
-	   "                  Default host is 'localhost' and default port is '18000'\n\n");
-
+	   "                   Default host is 'localhost' and default port is '18000'\n\n");
+  
+  if  ( level )
+    {
+      fprintf (stderr,
+               "The archive 'format' argument is expanded for each record using the\n"
+               "following flags:\n"
+               "\n"
+               "  n : Network code, white space removed\n"
+               "  s : Station code, white space removed\n"
+               "  l : Location code, white space removed\n"
+               "  c : Channel code, white space removed\n"
+               "  Y : Year, 4 digits\n"
+               "  y : Year, 2 digits zero padded\n"
+               "  j : Day of year, 3 digits zero padded\n"
+               "  H : Hour, 2 digits zero padded\n"
+               "  M : Minute, 2 digits zero padded\n"
+               "  S : Second, 2 digits zero padded\n"
+               "  F : Fractional seconds, 4 digits zero padded\n"
+               "  q : record quality indicator (D, R, Q, M), single character\n"
+               "  L : Data record length in bytes\n"
+               "  r : Sample rate (Hz) as a rounded integer\n"
+               "  R : Sample rate (Hz) as a float with 6 digit precision\n"
+               "  t : SeedLink packet type, single character\n"
+               "  %% : The percent (%%) character\n"
+               "  # : The number (#) character\n"
+               "\n"
+               "The flags are prefaced with either the %% or # modifier.  The %% modifier\n"
+               "indicates a defining flag while the # indicates a non-defining flag.\n"
+               "All records with the same set of defining flags will be written to the\n"
+               "same file. Non-defining flags will be expanded using the values in the\n"
+               "first record for the resulting file name.\n"
+               "\n");
+    }
 }  /* End of usage() */
