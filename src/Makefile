@@ -1,6 +1,11 @@
 
-# Standard compiler parameters
-CFLAGS  = -O -I../libslink
+# Build environment can be configured the following
+# environment variables:
+#   CC : Specify the C compiler to use
+#   CFLAGS : Specify compiler options to use
+
+# Required compiler parameters
+CFLAGS += -I../libslink
 
 # GCC specific parameters
 GCC = gcc
