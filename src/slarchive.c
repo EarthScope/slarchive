@@ -9,7 +9,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified 2008.024
+ * modified 2008.028
  ***************************************************************************/
 
 #include <stdio.h>
