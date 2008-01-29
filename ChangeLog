@@ -1,5 +1,6 @@
 2008.028: 2.0 beta2
 	- Update to blislink 2.1.
+	- Change src/Makefile to use user defined CC and CFLAGS.
 
 2008.024: 2.0 beta
 	- Update to libslink 2.0 with support for network/station wildcards.
