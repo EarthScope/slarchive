@@ -43,6 +43,9 @@ typedef struct DataStream_s
 }
 DataStream;
 
+/* Global maximum number of open files */
+extern int ds_maxopenfiles;
+
 extern int ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix);
 
 #endif

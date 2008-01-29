@@ -10,7 +10,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2008.024
+ * modified: 2008.028
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -23,6 +23,10 @@
 #include <glob.h>
 
 #include "dsarchive.h"
+
+/* Maximum number of open files */
+int ds_maxopenfiles = 0;
+int ds_openfilecount = 0;
 
 /* Functions internal to this source file */
 static DataStreamGroup *ds_getstream (DataStream *datastream, SLMSrecord *msr,
@@ -528,7 +532,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
     }
   
   return -1;
-}				/* End of ds_streamproc() */
+}  /* End of ds_streamproc() */
 
 
 /***************************************************************************
@@ -738,7 +742,7 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
     sl_log (2, 0, "Arg! open file for a key that no longer matches\n");
   
   return foundgroup;
-}				/* End of ds_getstream() */
+}  /* End of ds_getstream() */
 
 
 /***************************************************************************
@@ -760,9 +764,12 @@ ds_openfile (DataStream *datastream, const char *filename)
   int idletimeout = datastream->idletimeout;
   int oret = 0;
   
+  CHAD, use these values to control open file counts.
+  ds_maxopenfiles;
+  ds_openfilecount;
+  
   if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) == -1 )
-    {
-      
+    {      
       /* Check if max number of files open */
       if ( errno == EMFILE && rlimit == 0 )
 	{
@@ -791,7 +798,10 @@ ds_openfile (DataStream *datastream, const char *filename)
 		{
 		  /* Try to open the file again */
 		  if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) != -1 )
-		    return oret;
+		    {
+		      ds_openfilecount++;
+		      return oret;
+		    }
 		}
 	    }
 	}
@@ -808,12 +818,18 @@ ds_openfile (DataStream *datastream, const char *filename)
 	  
 	  /* Try to open the file again */
 	  if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) != -1 )
-	    return oret;
+	    {
+	      ds_openfilecount++;
+	      return oret;
+	    }
 	}
     }
   
+  if ( oret > 0 )
+    ds_openfilecount++;
+  
   return oret;
-}				/* End of ds_openfile() */
+}  /* End of ds_openfile() */
 
 
 /***************************************************************************
@@ -879,8 +895,10 @@ ds_closeidle (DataStream *datastream, int idletimeout)
       searchgroup = nextgroup;
     }
   
+  ds_openfilecount -= count;
+  
   return count;
-}				/* End of ds_closeidle() */
+}  /* End of ds_closeidle() */
 
 
 /***************************************************************************
@@ -912,7 +930,7 @@ ds_shutdown (DataStream *datastream)
       free (prevgroup->defkey);
       free (prevgroup);
     }
-}				/* End of ds_shutdown() */
+}  /* End of ds_shutdown() */
 
 
 /***************************************************************************
@@ -938,7 +956,7 @@ sl_msr_lastsamptime (SLMSrecord *msr)
   startepoch = sl_msr_depochstime(msr);
   
   return (startepoch + span);
-}				/* End of sl_msr_lastsamptime() */
+}  /* End of sl_msr_lastsamptime() */
 
 
 /***************************************************************************
