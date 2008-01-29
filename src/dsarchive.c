@@ -807,10 +807,11 @@ ds_openfile (DataStream *datastream, const char *filename)
 	}
     }
   
-  /* Close open files from the DataStream if already at the limit */
+  /* Close open files from the DataStream if already at the limit of (ds_maxopenfiles - 10) */
   if ( (ds_openfilecount + 10) > ds_maxopenfiles )
     {
-      sl_log (1, 2, "Maximum open files reached, closing idle stream files\n");
+      sl_log (1, 2, "Maximum open archive files reached (%d), closing idle stream files\n",
+	      (ds_maxopenfiles - 10));
       
       /* Close idle streams until we have free descriptors */
       while ( ds_closeidle (datastream, idletimeout) == 0 && idletimeout >= 0 )
