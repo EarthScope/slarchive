@@ -2,7 +2,9 @@
  * dsarchive.c
  * Routines to archive Mini-SEED data records.
  *
- * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
+ * Written by Chad Trabant
+ *   ORFEUS/EC-Project MEREDIAN
+ *   IRIS Data Management Center
  *
  * The philosophy: a "DataStream" describes an archive that miniSEED
  * records will be saved to.  Each archive can be separated into
@@ -10,7 +12,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2008.028
+ * modified: 2008.029
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -763,70 +765,65 @@ ds_openfile (DataStream *datastream, const char *filename)
   struct rlimit rlim;
   int idletimeout = datastream->idletimeout;
   int oret = 0;
+  int flags = (O_RDWR | O_CREAT | O_APPEND);
+  mode_t mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); /* Mode 0644 */
   
-  CHAD, use these values to control open file counts.
-  ds_maxopenfiles;
-  ds_openfilecount;
+  if ( ! datastream )
+    return -1;
   
-  if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) == -1 )
-    {      
-      /* Check if max number of files open */
-      if ( errno == EMFILE && rlimit == 0 )
+  /* Lookup process open file limit and change ds_maxopenfiles if needed */
+  if ( ! rlimit )
+    {
+      rlimit = 1;
+      
+      if ( getrlimit (RLIMIT_NOFILE, &rlim) == -1 )
 	{
-	  rlimit = 1;
-	  sl_log (1, 1, "Too many open files, trying to increase limit\n");
-	  
-	  /* Set the soft open file limit to the hard open file limit */
-	  if ( getrlimit (RLIMIT_NOFILE, &rlim) == -1 )
+	  sl_log (2, 0, "getrlimit failed to get open file limit\n");
+	}
+      else
+	{
+	  /* Increase process open file limit to ds_maxopenfiles or hard limit */
+	  if ( ds_maxopenfiles && ds_maxopenfiles > rlim.rlim_cur )
 	    {
-	      sl_log (2, 0, "getrlimit failed to get open file limit\n");
-	    }
-	  else
-	    {
-	      rlim.rlim_cur = rlim.rlim_max;
-	      
-	      if ( rlim.rlim_cur == RLIM_INFINITY )
-		sl_log (1, 3, "Setting open file limit to 'infinity'\n");
+	      if ( ds_maxopenfiles > rlim.rlim_max )
+		rlim.rlim_cur = rlim.rlim_max;
 	      else
-		sl_log (1, 3, "Setting open file limit to %d\n", rlim.rlim_cur);
+		rlim.rlim_cur = ds_maxopenfiles;
+	      
+	      sl_log (1, 3, "Setting open file limit to %lld\n", (int64_t) rlim.rlim_cur);
 	      
 	      if ( setrlimit (RLIMIT_NOFILE, &rlim) == -1 )
 		{
 		  sl_log (2, 0, "setrlimit failed to set open file limit\n");
 		}
-	      else
-		{
-		  /* Try to open the file again */
-		  if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) != -1 )
-		    {
-		      ds_openfilecount++;
-		      return oret;
-		    }
-		}
+	      
+	      ds_maxopenfiles = rlim.rlim_cur;
 	    }
-	}
-      
-      if ( errno == EMFILE || errno == ENFILE )
-	{
-	  sl_log (1, 2, "Too many open files, closing idle stream files\n");
-	  
-	  /* Close idle streams until we have free descriptors */
-	  while ( ds_closeidle (datastream, idletimeout) == 0 && idletimeout >= 0 )
+	  /* Set max to current soft limit if not already specified */
+	  else if ( ! ds_maxopenfiles )
 	    {
-	      idletimeout = (idletimeout / 2) - 1;
-	    }
-	  
-	  /* Try to open the file again */
-	  if ( (oret = open (filename, O_RDWR | O_CREAT | O_APPEND, 0644)) != -1 )
-	    {
-	      ds_openfilecount++;
-	      return oret;
+	      ds_maxopenfiles = rlim.rlim_cur;
 	    }
 	}
     }
   
-  if ( oret > 0 )
-    ds_openfilecount++;
+  /* Close open files from the DataStream if already at the limit */
+  if ( (ds_openfilecount + 10) > ds_maxopenfiles )
+    {
+      sl_log (1, 2, "Maximum open files reached, closing idle stream files\n");
+      
+      /* Close idle streams until we have free descriptors */
+      while ( ds_closeidle (datastream, idletimeout) == 0 && idletimeout >= 0 )
+	{
+	  idletimeout = (idletimeout / 2) - 1;
+	}
+    }
+  
+  /* Open file */
+  if ( (oret = open (filename, flags, mode)) > 0 )
+    {
+      ds_openfilecount++;
+    }
   
   return oret;
 }  /* End of ds_openfile() */

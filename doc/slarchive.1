@@ -1,4 +1,4 @@
-.TH SLARCHIVE 1 2008/01/24
+.TH SLARCHIVE 1 2008/01/29
 .SH NAME
 slarchive \- SeedLink client for data stream archiving
 
@@ -41,6 +41,13 @@ used multiple times ("-p -p" or "-pp") for more detail.  One flag: a
 single summary line for each data packet received.  Two flags: details
 of the Mini-SEED data records received, including information from
 fixed header and 100/1000/1001 blockettes.
+
+.IP "-f \fImax\fR"
+The maximum number of files to keep open.  If not specified the
+maximum will be the default system process limit (for the given
+environment).  The maxium number of open archive data files will be
+maintained at 10 less than the absolute maximum leaving descriptors
+available for other tasks (e.g. writing state files).
 
 .IP "-nd \fIdelay\fR"
 The network reconnect delay (in seconds) for the connection to

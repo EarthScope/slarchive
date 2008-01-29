@@ -9,7 +9,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified 2008.028
+ * modified 2008.029
  ***************************************************************************/
 
 #include <stdio.h>
@@ -257,13 +257,17 @@ parameter_proc (int argcount, char **argvec)
 	{
 	  slconn->dialup = 1;
 	}
-      else if (strcmp (argvec[optind], "-nt") == 0)
+      else if (strcmp (argvec[optind], "-f") == 0)
 	{
-	  slconn->netto = atoi (getoptval(argcount, argvec, optind++));
+	  ds_maxopenfiles = atoi (getoptval(argcount, argvec, optind++));
 	}
       else if (strcmp (argvec[optind], "-nd") == 0)
 	{
 	  slconn->netdly = atoi (getoptval(argcount, argvec, optind++));
+	}
+      else if (strcmp (argvec[optind], "-nt") == 0)
+	{
+	  slconn->netto = atoi (getoptval(argcount, argvec, optind++));
 	}
       else if (strcmp (argvec[optind], "-k") == 0)
 	{
@@ -605,6 +609,7 @@ usage (int level)
            " -H              Print usage message with 'format' details (see -A option)\n"
 	   " -v              Be more verbose, multiple flags can be used\n"
 	   " -p              Print details of data packets, multiple flags can be used\n"
+	   " -f max          Maximum number of files to keep open\n"
 	   " -nd delay       Network re-connect delay (seconds), default 30\n"
 	   " -nt timeout     Network timeout (seconds), re-establish connection if no\n"
 	   "                   data/keepalives are received in this time, default 600\n"
