@@ -12,7 +12,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2008.029
+ * modified: 2008.043
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -66,8 +66,10 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
   char pathformat[MAX_FILENAME_LEN];
   char globmatch[MAX_FILENAME_LEN];
   int fnlen = 0;
-  int written;
   int nondefflags = 0;
+  int writebytes;
+  int writeloops;
+  int rv;
   
   int reclen = SLRECSIZE;
   
@@ -511,25 +513,52 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       /*  Write the record to the appropriate file */
       sl_log (1, 3, "Writing data to data stream file %s\n", foundgroup->filename);
       
-      if ( (written = write (foundgroup->filed, msr->msrecord, reclen)) != reclen )
+      /* Try up to 10 times to write the data out, could be interrupted by signal */
+      writebytes = 0;
+      writeloops = 0; 
+      while ( writeloops < 10 )
+        {
+	  rv = write (foundgroup->filed, msr->msrecord+writebytes, reclen-writebytes);
+	  
+	  if ( rv > 0 )
+	    writebytes += rv;
+	  
+	  /* Done if the entire record was written */
+	  if ( writebytes == reclen )
+	    break;
+	  
+	  if ( rv < 0 )
+	    {
+	      if ( errno != EINTR )
+		{
+		  sl_log (2, 1, "ds_streamproc: failed to write record: %s (%s)\n",
+			  strerror(errno), foundgroup->filename);
+		  return -1;
+		}
+	      else
+		{
+		  sl_log (1, 1, "ds_streamproc: Interrupted call to write (%s), retrying\n",
+			  foundgroup->filename);
+		}
+	    }
+	  
+	  writeloops++;
+        }
+      
+      if ( writeloops >= 10 )
 	{
-          if ( written < 0 )
-            sl_log (2, 1, "ds_streamproc: failed to write record: %s (%s)\n",
-		    strerror(errno), foundgroup->filename);
-          else
-            sl_log (2, 1, "ds_streamproc: partial write, only wrote %d of %d bytes (%s)\n",
-		    written, reclen, foundgroup->filename);
+	  sl_log (2, 0, "ds_streamproc: Tried 10 times to write record, interrupted each time\n");
 	  return -1;
 	}
-      else
-	{
-	  foundgroup->modtime = time (NULL);
-	  
-	  if ( datastream->packettype == SLDATA &&
-	       (datastream->futureinitflag || datastream->futurecontflag) )
-	    foundgroup->lastsample = sl_msr_lastsamptime (msr);
-	}
-
+      
+      /* Update mod time for this entry */
+      foundgroup->modtime = time (NULL);
+      
+      /* Update time of last sample if future checking */
+      if ( datastream->packettype == SLDATA &&
+	   (datastream->futureinitflag || datastream->futurecontflag) )
+	foundgroup->lastsample = sl_msr_lastsamptime (msr);
+      
       return 0;
     }
   
@@ -675,11 +704,12 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
       
       if ( (foundgroup->filed = ds_openfile (datastream, filename)) == -1 )
 	{
-	  /* Do not complain about interrupted calls (signals used for shutdown) */
-          if ( errno == EINTR )
-            foundgroup->filed = 0;
+	  /* Do not complain if the call was interrupted (signals are used for shutdown) */ 
+	  if ( errno == EINTR )
+	    foundgroup->filed = 0;
 	  else
 	    sl_log (2, 0, "cannot open data stream file, %s\n", strerror (errno));
+	  
 	  return NULL;
 	}
       
@@ -821,7 +851,7 @@ ds_openfile (DataStream *datastream, const char *filename)
     }
   
   /* Open file */
-  if ( (oret = open (filename, flags, mode)) > 0 )
+  if ( (oret = open (filename, flags, mode)) != -1 )
     {
       ds_openfilecount++;
     }

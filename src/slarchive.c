@@ -9,7 +9,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified 2008.029
+ * modified 2008.043
  ***************************************************************************/
 
 #include <stdio.h>
@@ -23,7 +23,7 @@
 #include "dsarchive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "2.0beta2"
+#define VERSION   "2.0beta3"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);

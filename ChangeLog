@@ -1,3 +1,7 @@
+2008.043: 2.0 beta3
+	- Add logic to retry write(2) calls up to 10 times for
+	interrupted calls to guard against partial writes.
+
 2008.029: 2.0 beta2
 	- Update to libslink 2.1.
 	- Change src/Makefile to use user defined CC and CFLAGS.
