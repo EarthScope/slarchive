@@ -1,6 +1,9 @@
+2008.113: 2.0
+	- Update to libslink 2.2 (inconsequential changes).
+
 2008.043: 2.0 beta3
-	- Add logic to retry write(2) calls up to 10 times for
-	interrupted calls to guard against partial writes.
+	- Add logic to retry interrupted write(2) calls up to 10
+	times for interrupted calls to guard against partial writes.
 
 2008.029: 2.0 beta2
 	- Update to libslink 2.1.
