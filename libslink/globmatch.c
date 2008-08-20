@@ -24,6 +24,9 @@
  *	a[-a-z]c	a-c aac abc ...
  *
  * $Log: not supported by cvs2svn $
+ * Revision 1.5  2008/04/22 17:53:41  chad
+ * final 2.0
+ *
  * Revision 1.1  2007/10/09 00:47:17  chad
  * add extended reply message handling
  *
