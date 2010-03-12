@@ -1,4 +1,4 @@
-.TH SLARCHIVE 1 2008/01/29
+.TH SLARCHIVE 1 2010/03/10
 .SH NAME
 slarchive \- SeedLink client for data stream archiving
 
@@ -91,6 +91,10 @@ Configure the connection in "dial-up" mode.  The remote server will
 close the connection when it has sent all of the data in it's buffers
 for the selected data streams.  This is opposed to the normal behavior
 of waiting indefinately for data.
+
+.IP "-b"
+Configure the connection in "batch" mode.  Negotiation with the remote
+server is made faster by minimizing acknowledgement checks.
 
 .IP "-Fi[:overlap]  "
 Future check initially.  Check the last Mini-SEED data record in an

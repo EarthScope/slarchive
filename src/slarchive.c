@@ -9,7 +9,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified 2008.043
+ * modified 2010.069
  ***************************************************************************/
 
 #include <stdio.h>
@@ -23,7 +23,7 @@
 #include "dsarchive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "2.0b"
+#define VERSION   "2.1dev"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);
@@ -256,6 +256,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-d") == 0)
 	{
 	  slconn->dialup = 1;
+	}
+      else if (strcmp (argvec[optind], "-b") == 0)
+	{
+	  slconn->batchmode = 1;
 	}
       else if (strcmp (argvec[optind], "-f") == 0)
 	{
@@ -617,6 +621,7 @@ usage (int level)
 	   " -x sfile[:int]  Save/restore stream state information to this file\n"
 	   " -i timeout      Idle stream entries might be closed (seconds), default 300\n"
 	   " -d              Configure the connection in dial-up mode\n"
+	   " -b              Configure the connection in batch mode\n"
 	   " -Fi[:overlap]   Initially check (existing files) that data records are newer\n"
 	   " -Fc[:overlap]   Continuously check that data records are newer\n"
 	   "\n"
