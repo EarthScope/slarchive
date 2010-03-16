@@ -1,4 +1,4 @@
-2010.069:
+2010.075:
 	- Update to libslink 2.3 with support for batch mode.
 	- Add support for batch mode, patch by Andres Heinloo/GFZ.
 
