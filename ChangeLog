@@ -1,3 +1,7 @@
+2010.102:
+	- Fix globbing detection and bad filename pointer use,
+	reported by Eric Haug.
+
 2010.075:
 	- Update to libslink 2.3 with support for batch mode.
 	- Add support for batch mode, patch by Andres Heinloo/GFZ.

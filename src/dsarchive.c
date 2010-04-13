@@ -650,7 +650,8 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
 	  sl_log (1, 2, "Found matching file for non-defining flags: %s\n", matchedfilename);
 	  
 	  /* Now that we have a match use it instead of filename */
-	  filename = matchedfilename;
+	  strncpy (filename, matchedfilename, MAX_FILENAME_LEN-2);
+          filename[MAX_FILENAME_LEN-1] = '\0';
 	}
       
       globfree (&pglob);
