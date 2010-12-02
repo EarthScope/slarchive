@@ -23,7 +23,7 @@
 #include "dsarchive.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "2.1dev"
+#define VERSION   "2.1"
 
 static void packet_handler (char *msrecord, int packet_type,
 			    int seqnum, int packet_size);

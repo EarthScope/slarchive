@@ -1,4 +1,4 @@
-2010.102:
+2010.102: 2.1
 	- Fix globbing detection and bad filename pointer use,
 	reported by Eric Haug.
 
