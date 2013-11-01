@@ -24,9 +24,6 @@
  *	a[-a-z]c	a-c aac abc ...
  *
  * $Log: not supported by cvs2svn $
- * Revision 1.1  2007/10/09 00:47:17  chad
- * add extended reply message handling
- *
  * Revision 1.4sl  2007/06/18  12:47:00  ct
  * Rename globmatch to sl_globmatch for integration into libslink.
  *
