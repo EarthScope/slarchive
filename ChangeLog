@@ -1,3 +1,7 @@
+2013.305: 2.2
+	- Update to libslink 2.4b with fix for negating selectors
+	in stream selection list file.
+
 2010.102: 2.1
 	- Fix globbing detection and bad filename pointer use,
 	reported by Eric Haug.
