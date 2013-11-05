@@ -1,6 +1,20 @@
+2013.305: 3.0
+	- Properly handle the case where all output files associated with a
+	DataStream would be closed because the idle time out reached 0 by
+	making sure the current entry does not get closed.  This fixes a bug
+	that caused a crash when all the open files were opened within the
+	last second.
+	- Only check for and create parent directories when opening a file,
+	instead of checking for parent directories for each record written.
+	This change eliminates some unnecessary system I/O calls, since there
+	is no need to check for parent directories for files already open.
+	- Create directories and files with full permissions: directories (777)
+	and files (666).  An operator can control the final permissions of the
+	files and directories by setting the umask.
+
 2013.305: 2.2
-	- Update to libslink 2.4b with fix for negating selectors
-	in stream selection list file.
+	- Update to libslink 2.4b with fix for negating selectors in stream
+	selection list file.
 
 2010.102: 2.1
 	- Fix globbing detection and bad filename pointer use,

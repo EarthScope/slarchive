@@ -12,7 +12,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2008.043
+ * modified: 2013.305
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -57,19 +57,22 @@ extern int
 ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 {
   DataStreamGroup *foundgroup = NULL;
-  SLstrlist *fnlist, *fnptr;
   char *tptr;
   char tstr[20];
   char net[3], sta[6], loc[3], chan[4];
-  char filename[MAX_FILENAME_LEN];
-  char definition[MAX_FILENAME_LEN];
-  char pathformat[MAX_FILENAME_LEN];
-  char globmatch[MAX_FILENAME_LEN];
+  char filename[MAX_FILENAME_LEN] = "";
+  char definition[MAX_FILENAME_LEN] = "";
+  char pathformat[MAX_FILENAME_LEN] = "";
+  char globmatch[MAX_FILENAME_LEN] = "";
   int fnlen = 0;
+  int globlen = 0;
   int nondefflags = 0;
   int writebytes;
   int writeloops;
   int rv;
+  int tdy;
+  char *w, *p, def;
+  double dsamprate = 0.0;
   
   int reclen = SLRECSIZE;
   
@@ -82,14 +85,16 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       return 0;
     }
   
-  /* Build file path and name from pathformat */
-  filename[0] = '\0';
-  definition[0] = '\0';
-  globmatch[0] = '\0';
+  /* Check for empty path */
+  if ( ! datastream->path || strlen (datastream->path) <= 0 )
+    {
+      sl_log (2, 0, "ds_streamproc(): empty path format\n");
+      return -1;
+    }
+
+  /* Create a copy of the specified path, it will be modified during parsing */
   snprintf (pathformat, sizeof(pathformat), "%s", datastream->path);
-  sl_strparse (pathformat, "/", &fnlist);
-  
-  fnptr = fnlist;
+  pathformat[sizeof(pathformat)-1] = '\0';
   
   /* Count all of the non-defining flags */
   tptr = pathformat;
@@ -100,298 +105,12 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       tptr++;
     }
   
-  /* Special case of an absolute path (first entry is empty) */
-  if ( *fnptr->element == '\0' )
+  /* Process each converstion flag */
+  p = pathformat;
+  while ( (w = strpbrk (p, "%#")) != NULL )
     {
-      if ( fnptr->next != 0 )
-	{
-	  strcat (filename, "/");
-	  strcat (globmatch, "/");
-	  fnptr = fnptr->next;
-	}
-      else
-	{
-	  sl_log (2, 0, "ds_streamproc(): empty path format\n");
-	  sl_strparse (NULL, NULL, &fnlist);
-	  return -1;
-	}
-    }
-  
-  while ( fnptr != 0 )
-    {
-      int globlen = 0;
-      int tdy;
-      char *w, *p, def;
-      double dsamprate = 0.0;
-
-      p = fnptr->element;
-
-      /* Special case of no file given */
-      if ( *p == '\0' && fnptr->next == 0 )
-	{
-	  sl_log (2, 0, "ds_streamproc(): no file name specified, only %s\n",
-		  filename);
-	  sl_strparse (NULL, NULL, &fnlist);
-	  return -1;
-	}
-
-      while ( (w = strpbrk (p, "%#")) != NULL )
-	{
-	  def = ( *w == '%' );
-	  *w = '\0';
-
-	  strncat (filename, p, (sizeof(filename) - fnlen));
-	  fnlen = strlen (filename);
-	  
-	  if ( nondefflags > 0 )
-	    {
-	      strncat (globmatch, p, (sizeof(globmatch) - globlen));
-	      globlen = strlen (globmatch);
-	    }
-	  
-	  w += 1;
-
-	  switch ( *w )
-	    {
-	    case 't' :
-	      snprintf (tstr, sizeof(tstr), "%c", sl_typecode(datastream->packettype));
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'n' :
-	      sl_strncpclean (net, msr->fsdh.network, 2);
-	      strncat (filename, net, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, net, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, net, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 's' :
-	      sl_strncpclean (sta, msr->fsdh.station, 5);
-	      strncat (filename, sta, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, sta, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, sta, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'l' :
-	      sl_strncpclean (loc, msr->fsdh.location, 2);
-	      strncat (filename, loc, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, loc, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, loc, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'c' :
-	      sl_strncpclean (chan, msr->fsdh.channel, 3);
-	      strncat (filename, chan, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, chan, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, chan, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'Y' :
-	      snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.year);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'y' :
-	      tdy = (int) msr->fsdh.start_time.year;
-	      while ( tdy > 100 )
-		{
-		  tdy -= 100;
-		}
-	      snprintf (tstr, sizeof(tstr), "%02d", tdy);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'j' :
-	      snprintf (tstr, sizeof(tstr), "%03d", (int) msr->fsdh.start_time.day);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'H' :
-	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.hour);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'M' :
-	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.min);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'S' :
-	      snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.sec);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'F' :
-	      snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.fract);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'q' :
-	      snprintf (tstr, sizeof(tstr), "%c", msr->fsdh.dhq_indicator);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'L' :
-	      snprintf (tstr, sizeof(tstr), "%d", SLRECSIZE);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'r' :
-	      sl_msr_dsamprate (msr, &dsamprate);
-	      snprintf (tstr, sizeof(tstr), "%ld", (long int) (dsamprate+0.5));
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case 'R' :
-	      sl_msr_dsamprate (msr, &dsamprate);
-	      snprintf (tstr, sizeof(tstr), "%.6f", dsamprate);
-	      strncat (filename, tstr, (sizeof(filename) - fnlen));
-	      if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
-	      if ( nondefflags > 0 )
-		{
-		  if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
-		  else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    case '%' :
-	      strncat (filename, "%", (sizeof(filename) - fnlen));
-	      strncat (globmatch, "%", (sizeof(globmatch) - globlen));
-	      fnlen = strlen (filename);
-	      globlen = strlen (globmatch);
-	      p = w + 1;
-	      break;
-	    case '#' :
-	      strncat (filename, "#", (sizeof(filename) - fnlen));
-	      nondefflags--;
-	      if ( nondefflags > 0 )
-		{
-		  strncat (globmatch, "#", (sizeof(globmatch) - globlen));
-		  globlen = strlen (globmatch);
-		}
-	      fnlen = strlen (filename);
-	      p = w + 1;
-	      break;
-	    default :
-	      sl_log (2, 0, "unknown file name format code: %c\n", *w);
-	      p = w;
-	      break;
-	    }
-	}
+      def = ( *w == '%' );
+      *w = '\0';
       
       strncat (filename, p, (sizeof(filename) - fnlen));
       fnlen = strlen (filename);
@@ -402,45 +121,258 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  globlen = strlen (globmatch);
 	}
       
-      /* If not the last entry then it should be a directory */
-      if ( fnptr->next != 0 )
+      /* The conversion code is the next character, replace with content */
+      w += 1;
+      switch ( *w )
 	{
-	  if ( access (filename, F_OK) )
-	    {
-	      if ( errno == ENOENT )
-		{
-		  sl_log (1, 1, "Creating directory: %s\n", filename);
-		  if (mkdir
-		      (filename, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH))
-		    {
-		      sl_log (2, 1, "ds_streamproc: mkdir(%s) %s\n", filename,
-			      strerror (errno));
-		      sl_strparse (NULL, NULL, &fnlist);
-		      return -1;
-		    }
-		}
-	      else
-		{
-		  sl_log (2, 0, "%s: access denied, %s\n", filename, strerror(errno));
-		  sl_strparse (NULL, NULL, &fnlist);
-		  return -1;
-		}
-	    }
-	  
-	  strncat (filename, "/", (sizeof(filename) - fnlen));
-	  fnlen++;
-	  
+	case 't' :
+	  snprintf (tstr, sizeof(tstr), "%c", sl_typecode(datastream->packettype));
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
 	    {
-	      strncat (globmatch, "/", (sizeof(globmatch) - globlen));
-	      globlen++;
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
 	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'n' :
+	  sl_strncpclean (net, msr->fsdh.network, 2);
+	  strncat (filename, net, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, net, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, net, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 's' :
+	  sl_strncpclean (sta, msr->fsdh.station, 5);
+	  strncat (filename, sta, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, sta, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, sta, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'l' :
+	  sl_strncpclean (loc, msr->fsdh.location, 2);
+	  strncat (filename, loc, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, loc, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, loc, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'c' :
+	  sl_strncpclean (chan, msr->fsdh.channel, 3);
+	  strncat (filename, chan, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, chan, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, chan, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'Y' :
+	  snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.year);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'y' :
+	  tdy = (int) msr->fsdh.start_time.year;
+	  while ( tdy > 100 )
+	    {
+	      tdy -= 100;
+	    }
+	  snprintf (tstr, sizeof(tstr), "%02d", tdy);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'j' :
+	  snprintf (tstr, sizeof(tstr), "%03d", (int) msr->fsdh.start_time.day);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'H' :
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.hour);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'M' :
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.min);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'S' :
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.sec);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'F' :
+	  snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.fract);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "[0-9][0-9][0-9][0-9]", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'q' :
+	  snprintf (tstr, sizeof(tstr), "%c", msr->fsdh.dhq_indicator);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "?", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'L' :
+	  snprintf (tstr, sizeof(tstr), "%d", SLRECSIZE);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'r' :
+	  sl_msr_dsamprate (msr, &dsamprate);
+	  snprintf (tstr, sizeof(tstr), "%ld", (long int) (dsamprate+0.5));
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case 'R' :
+	  sl_msr_dsamprate (msr, &dsamprate);
+	  snprintf (tstr, sizeof(tstr), "%.6f", dsamprate);
+	  strncat (filename, tstr, (sizeof(filename) - fnlen));
+	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
+	  if ( nondefflags > 0 )
+	    {
+	      if ( def ) strncat (globmatch, tstr, (sizeof(globmatch) - globlen));
+	      else strncat (globmatch, "*", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	case '%' :
+	  strncat (filename, "%", (sizeof(filename) - fnlen));
+	  strncat (globmatch, "%", (sizeof(globmatch) - globlen));
+	  fnlen = strlen (filename);
+	  globlen = strlen (globmatch);
+	  p = w + 1;
+	  break;
+	case '#' :
+	  strncat (filename, "#", (sizeof(filename) - fnlen));
+	  nondefflags--;
+	  if ( nondefflags > 0 )
+	    {
+	      strncat (globmatch, "#", (sizeof(globmatch) - globlen));
+	      globlen = strlen (globmatch);
+	    }
+	  fnlen = strlen (filename);
+	  p = w + 1;
+	  break;
+	default :
+	  sl_log (2, 0, "unknown file name format code: %c\n", *w);
+	  p = w;
+	  break;
 	}
-
-      fnptr = fnptr->next;
     }
-
-  sl_strparse (NULL, NULL, &fnlist);
+  
+  strncat (filename, p, (sizeof(filename) - fnlen));
+  fnlen = strlen (filename);
+  
+  if ( nondefflags > 0 )
+    {
+      strncat (globmatch, p, (sizeof(globmatch) - globlen));
+      globlen = strlen (globmatch);
+    }
   
   /* Add ".suffix" to filename and definition if suffix is not 0 */
   if ( suffix )
@@ -605,12 +537,6 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
 	  
 	  foundgroup = searchgroup;
 	  
-	  /* Keep ds_closeidle from closing this stream */
-	  if ( foundgroup->modtime > 0 )
-	    {
-	      foundgroup->modtime *= -1;
-	    }
-
 	  break;
 	}
       
@@ -691,6 +617,12 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
 	  sl_log (2, 0, "stream chain is broken!\n");
 	  return NULL;
 	}
+    }
+  
+  /* Keep ds_closeidle from closing this stream */
+  if ( foundgroup->modtime > 0 )
+    {
+      foundgroup->modtime *= -1;
     }
   
   /* Close idle stream files */
@@ -786,6 +718,11 @@ ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
  * start closing idle files with decreasing idle timeouts until a file
  * can be opened.
  *
+ * Parent directories that are needed are created.
+ *
+ * Directories are created with full (0777) permissions and files are created
+ * with full (0666) permissions.
+ *
  * Return the result of open(2), normally this a the file descriptor
  * on success and -1 on error.
  ***************************************************************************/
@@ -794,10 +731,14 @@ ds_openfile (DataStream *datastream, const char *filename)
 {
   static char rlimit = 0;
   struct rlimit rlim;
+  SLstrlist *dplist = NULL;
+  SLstrlist *dpptr = NULL;
+  char dirpath[MAX_FILENAME_LEN] = "";
+  int dplen = 0;
   int idletimeout = datastream->idletimeout;
   int oret = 0;
   int flags = (O_RDWR | O_CREAT | O_APPEND);
-  mode_t mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); /* Mode 0644 */
+  mode_t mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH); /* Mode 0666 */
   
   if ( ! datastream )
     return -1;
@@ -814,9 +755,9 @@ ds_openfile (DataStream *datastream, const char *filename)
       else
 	{
 	  /* Increase process open file limit to ds_maxopenfiles or hard limit */
-	  if ( ds_maxopenfiles && ds_maxopenfiles > rlim.rlim_cur )
+	  if ( ds_maxopenfiles && (rlim_t)ds_maxopenfiles > rlim.rlim_cur )
 	    {
-	      if ( ds_maxopenfiles > rlim.rlim_max )
+	      if ( (rlim_t)ds_maxopenfiles > rlim.rlim_max )
 		rlim.rlim_cur = rlim.rlim_max;
 	      else
 		rlim.rlim_cur = ds_maxopenfiles;
@@ -850,6 +791,55 @@ ds_openfile (DataStream *datastream, const char *filename)
 	  idletimeout = (idletimeout / 2) - 1;
 	}
     }
+  
+  /* Parse filename into path components */
+  sl_strparse (filename, "/", &dplist);
+  dpptr = dplist;
+  
+  /* Special case of an absolute path (first entry is empty) */
+  if ( *dpptr->element == '\0' )
+    {
+      strncat (dirpath, "/", (sizeof(dirpath) - dplen));
+      dplen += 1;
+      dpptr = dpptr->next;
+    }
+  
+  /* Verify existence of each parent directory and create if needed.
+   * If the parsed path entry is not the last then it should be a directory. */
+  while ( dpptr && dpptr->next )
+    {
+      /* Add entry to directory path */
+      strncat (dirpath, dpptr->element, (sizeof(dirpath) - dplen));
+      dplen = strlen (dirpath);
+      
+      if ( access (dirpath, F_OK) )
+	{
+	  if ( errno == ENOENT )
+	    {
+	      sl_log (1, 1, "Creating directory: %s\n", dirpath);
+	      if ( mkdir (dirpath, S_IRWXU | S_IRWXG | S_IRWXO) ) /* Mode 0777 */
+		{
+		  sl_log (2, 1, "ds_openfile: mkdir(%s) %s\n", dirpath, strerror (errno));
+		  sl_strparse (NULL, NULL, &dplist);
+		  return -1;
+		}
+	    }
+	  else
+	    {
+	      sl_log (2, 0, "%s: access denied, %s\n", dirpath, strerror(errno));
+	      sl_strparse (NULL, NULL, &dplist);
+	      return -1;
+	    }
+	}
+      
+      strncat (dirpath, "/", (sizeof(dirpath) - dplen));
+      dplen += 1;
+      
+      dpptr = dpptr->next;
+    }
+  
+  /* Free path component list */
+  sl_strparse (NULL, NULL, &dplist);
   
   /* Open file */
   if ( (oret = open (filename, flags, mode)) != -1 )
@@ -886,30 +876,23 @@ ds_closeidle (DataStream *datastream, int idletimeout)
     {
       nextgroup = searchgroup->next;
       
-      if ( searchgroup->modtime > 0 && (curtime - searchgroup->modtime) > idletimeout )
+      if ( searchgroup->modtime > 0 && (curtime - searchgroup->modtime) >= idletimeout )
 	{
 	  sl_log (1, 2, "Closing idle stream with key %s\n", searchgroup->defkey);
 	  
 	  /* Re-link the stream chain */
 	  if ( prevgroup != NULL )
 	    {
-	      if ( searchgroup->next != NULL )
-		prevgroup->next = searchgroup->next;
-	      else
-		prevgroup->next = NULL;
+	      prevgroup->next = searchgroup->next;
 	    }
 	  else
 	    {
-	      if ( searchgroup->next != NULL )
-		datastream->grouproot = searchgroup->next;
-	      else
-		datastream->grouproot = NULL;
+	      datastream->grouproot = searchgroup->next;
 	    }
 	  
 	  /* Close the associated file */
 	  if ( close (searchgroup->filed) )
-	    sl_log (2, 0, "ds_closeidle(), closing data stream file, %s\n",
-		    strerror (errno));
+	    sl_log (2, 0, "ds_closeidle(), closing data stream file, %s\n", strerror (errno));
 	  else
 	    count++;
 	  
