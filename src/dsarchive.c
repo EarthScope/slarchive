@@ -12,7 +12,7 @@
  * file.  The definition of the groups is implied by the format of the
  * archive.
  *
- * modified: 2013.305
+ * modified: 2013.316
  ***************************************************************************/
 
 #include <sys/types.h>
@@ -31,10 +31,9 @@ int ds_maxopenfiles = 0;
 int ds_openfilecount = 0;
 
 /* Functions internal to this source file */
-static DataStreamGroup *ds_getstream (DataStream *datastream, SLMSrecord *msr,
-				      int reclen, const char *defkey,
-				      char *filename, int nondefflags,
-				      const char *globmatch);
+static DataStreamGroup *ds_getstream (DataStream *datastream, int reclen,
+				      const char *defkey, char *filename,
+				      int nondefflags, const char *globmatch);
 static int ds_openfile (DataStream *datastream, const char *filename);
 static int ds_closeidle (DataStream *datastream, int idletimeout);
 static void ds_shutdown (DataStream *datastream);
@@ -388,7 +387,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
   *(definition + sizeof(definition) - 1) = '\0';
   
   /* Check for previously used stream entry, otherwise create it */
-  foundgroup = ds_getstream (datastream, msr, reclen, definition, filename,
+  foundgroup = ds_getstream (datastream, reclen, definition, filename,
 			     nondefflags, globmatch);
   
   if ( foundgroup != NULL )
@@ -513,7 +512,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
  * Returns a pointer to a DataStreamGroup on success or NULL on error.
  ***************************************************************************/
 static DataStreamGroup *
-ds_getstream (DataStream *datastream, SLMSrecord *msr, int reclen,
+ds_getstream (DataStream *datastream, int reclen,
 	      const char *defkey, char *filename,
 	      int nondefflags, const char *globmatch)
 {

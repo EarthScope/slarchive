@@ -9,7 +9,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified 2010.069
+ * modified 2013.316
  ***************************************************************************/
 
 #include <stdio.h>
@@ -25,8 +25,7 @@
 #define PACKAGE   "slarchive"
 #define VERSION   "3.0rc"
 
-static void packet_handler (char *msrecord, int packet_type,
-			    int seqnum, int packet_size);
+static void packet_handler (char *msrecord, int packet_type, int seqnum);
 static int  parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
 static int  addarchive(const char *path, const char *layout);
@@ -91,8 +90,8 @@ main (int argc, char **argv)
       ptype  = sl_packettype (slpack);
       seqnum = sl_sequence (slpack);
 
-      packet_handler ((char *) &slpack->msrecord, ptype, seqnum, SLRECSIZE);
-
+      packet_handler ((char *) &slpack->msrecord, ptype, seqnum);
+      
       if ( statefile && stateint )
 	{
 	  if ( ++packetcnt >= stateint )
@@ -128,7 +127,7 @@ main (int argc, char **argv)
  * Process a received packet based on packet type.
  ***************************************************************************/
 static void
-packet_handler (char *msrecord, int packet_type, int seqnum, int packet_size)
+packet_handler (char *msrecord, int packet_type, int seqnum)
 {
   static SLMSrecord * msr = NULL;
 

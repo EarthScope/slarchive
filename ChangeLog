@@ -1,4 +1,4 @@
-2013.305: 3.0rc
+2013.316: 3.0rc
 	- Properly handle the case where all output files associated with a
 	DataStream would be closed when the idle time out reached 0 by making
 	sure the entry currently being used does not get closed.  The previous
@@ -11,6 +11,7 @@
 	- Create directories and files with full permissions: directories (777)
 	and files (666).  An operator can control the final permissions of the
 	files and directories by setting the umask.
+	- Cleanup some unused, extra variables.
 
 2013.305: 2.2
 	- Update to libslink 2.4b with fix for negating selectors in stream
