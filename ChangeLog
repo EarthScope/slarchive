@@ -1,4 +1,4 @@
-2013.316: 3.0rc
+2013.316: 3.0
 	- Properly handle the case where all output files associated with a
 	DataStream would be closed when the idle time out reached 0 by making
 	sure the entry currently being used does not get closed.  The previous
