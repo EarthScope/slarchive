@@ -1,3 +1,6 @@
+2016.295:
+	- Update libslink to 2.6.
+
 2013.316: 3.0
 	- Properly handle the case where all output files associated with a
 	DataStream would be closed when the idle time out reached 0 by making
