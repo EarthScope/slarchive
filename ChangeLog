@@ -1,3 +1,9 @@
+2023.051:
+	- Update libslink to 2.7.1.
+	- Fix crash on record parsing error
+	- Do not skip so-called end-of-detection records, where sample rate
+	factor is 0 and number of samples is 0.
+
 2023.006: 3.1
 	- Update libslink to 2.7.
 	- Fix minor compiler warning on printf().
