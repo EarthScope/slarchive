@@ -142,7 +142,8 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
 		    "Message", "General", "Request", "Info",
                     "Info (terminated)", "KeepAlive" };
 
-  if ( verbose >= 1 ) {
+  if (verbose >= 1)
+  {
     /* Build a current local time string */
     dtime   = sl_dtime ();
     secfrac = (double) ((double)dtime - (int)dtime);
@@ -159,19 +160,18 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
   /* Parse data record and print requested detail if any */
   sl_msr_parse (slconn->log, msrecord, &msr, 1, 0);
 
+  if (msr == NULL)
+  {
+    sl_log (2, 0, "cannot parse miniSEED record\n");
+    return;
+  }
+
   if ( ppackets )
     sl_msr_print (slconn->log, msr, ppackets - 1);
 
-  /* Process waveform data and send it on */
-  if ( packet_type == SLDATA )
-    {
-      /* Test for a so-called end-of-detection record */
-      if ( msr->fsdh.samprate_fact == 0 && msr->fsdh.num_samples == 0 )
-	archflag = 0;
-    }
-
   /* Write packet to all archives in archive definition chain */
-  if ( dsarchive && archflag ) {
+  if (dsarchive && archflag)
+  {
     DSArchive *curdsa = dsarchive;
 
     while ( curdsa != NULL ) {
