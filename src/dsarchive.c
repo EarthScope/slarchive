@@ -1,6 +1,6 @@
 /***************************************************************************
  * dsarchive.c
- * Routines to archive Mini-SEED data records.
+ * Routines to archive miniSEED data records.
  *
  * Written by Chad Trabant
  *   ORFEUS/EC-Project MEREDIAN
@@ -44,7 +44,7 @@ static char sl_typecode (int type);
 /***************************************************************************
  * ds_streamproc:
  *
- * Save MiniSEED records in a custom directory/file structure.  The
+ * Save miniSEED records in a custom directory/file structure.  The
  * appropriate directories and files are created if nesecessary.  If
  * files already exist they are appended to.  If 'msr' is NULL then
  * ds_shutdown() will be called to close all open files and free all

@@ -1,4 +1,4 @@
-2023.051:
+2023.051: 3.2
 	- Update libslink to 2.7.1.
 	- Fix crash on record parsing error
 	- Do not skip so-called end-of-detection records, where sample rate
