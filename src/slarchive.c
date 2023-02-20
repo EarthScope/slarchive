@@ -8,8 +8,7 @@
  * Written by Chad Trabant
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
- *
- * modified 2013.316
+ *   EarthScope Data Services
  ***************************************************************************/
 
 #include <stdio.h>
@@ -91,7 +90,7 @@ main (int argc, char **argv)
       seqnum = sl_sequence (slpack);
 
       packet_handler ((char *) &slpack->msrecord, ptype, seqnum);
-      
+
       if ( statefile && stateint )
 	{
 	  if ( ++packetcnt >= stateint )
@@ -105,7 +104,7 @@ main (int argc, char **argv)
   /* Do all the necessary cleanup and exit */
   if (slconn->link != -1)
     sl_disconnect (slconn);
-  
+
   if (dsarchive) {
     DSArchive *curdsa = dsarchive;
 
@@ -134,7 +133,7 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
   double dtime;			/* Epoch time */
   double secfrac;		/* Fractional part of epoch time */
   time_t ttime;			/* Integer part of epoch time */
-  char   timestamp[20];
+  char timestamp[36] = {0};
   struct tm *timep;
   int    archflag = 1;
 
@@ -149,20 +148,20 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
     secfrac = (double) ((double)dtime - (int)dtime);
     ttime   = (time_t) dtime;
     timep   = localtime (&ttime);
-    snprintf (timestamp, 20, "%04d.%03d.%02d:%02d:%02d.%01.0f",
+    snprintf (timestamp, sizeof(timestamp), "%04d.%03d.%02d:%02d:%02d.%01.0f",
 	      timep->tm_year + 1900, timep->tm_yday + 1, timep->tm_hour,
 	      timep->tm_min, timep->tm_sec, secfrac);
-    
+
     sl_log (1, 1, "%s, seq %d, Received %s blockette\n",
 	    timestamp, seqnum, type[packet_type]);
   }
 
   /* Parse data record and print requested detail if any */
   sl_msr_parse (slconn->log, msrecord, &msr, 1, 0);
-  
+
   if ( ppackets )
     sl_msr_print (slconn->log, msr, ppackets - 1);
-  
+
   /* Process waveform data and send it on */
   if ( packet_type == SLDATA )
     {
@@ -170,16 +169,16 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
       if ( msr->fsdh.samprate_fact == 0 && msr->fsdh.num_samples == 0 )
 	archflag = 0;
     }
-  
+
   /* Write packet to all archives in archive definition chain */
   if ( dsarchive && archflag ) {
     DSArchive *curdsa = dsarchive;
-    
+
     while ( curdsa != NULL ) {
       curdsa->datastream.packettype = packet_type;
-      
+
       ds_streamproc (&curdsa->datastream, msr, 0);
-      
+
       curdsa = curdsa->next;
     }
   }
@@ -355,12 +354,12 @@ parameter_proc (int argcount, char **argvec)
   if ( ! slconn->sladdr )
     {
       fprintf(stderr, "No SeedLink server specified\n\n");
-      fprintf(stderr, "%s version %s\n\n", PACKAGE, VERSION); 
+      fprintf(stderr, "%s version %s\n\n", PACKAGE, VERSION);
       fprintf(stderr, "Usage: %s [options] [host][:][port]\n\n", PACKAGE);
       fprintf(stderr, "Try '-h' for detailed help\n");
       exit (1);
     }
-  
+
   /* Initialize the verbosity for the sl_log function */
   sl_loginit (verbose, &print_timelog, NULL, &print_timelog, NULL);
 
@@ -376,7 +375,7 @@ parameter_proc (int argcount, char **argvec)
       usage (0);
       exit (1);
     }
-  
+
   /* Load the stream list from a file if specified */
   if ( streamfile )
     sl_read_streamlist (slconn, streamfile, selectors);
@@ -444,11 +443,11 @@ parameter_proc (int argcount, char **argvec)
       if ((tptr = strchr (statefile, ':')) != NULL)
 	{
 	  char *tail;
-	  
+
 	  *tptr++ = '\0';
-	  
+
 	  stateint = (unsigned int) strtoul (tptr, &tail, 0);
-	  
+
 	  if ( *tail || (stateint < 0 || stateint > 1e9) )
 	    {
 	      sl_log (2, 0, "state saving interval specified incorrectly\n");
@@ -461,7 +460,7 @@ parameter_proc (int argcount, char **argvec)
 	  sl_log (2, 0, "state recovery failed\n");
 	}
     }
-  
+
   /* If no archiving is specified print a warning */
   if ( !dsarchive ) {
     sl_log (1, 0, "WARNING: no archiving method was specified\n");
@@ -486,7 +485,7 @@ parameter_proc (int argcount, char **argvec)
 /***************************************************************************
  * getoptval:
  *
- * Return the value to a command line option; checking that the value is 
+ * Return the value to a command line option; checking that the value is
  * itself not an option (starting with '-') and is not past the end of
  * the argument list.
  *
@@ -537,12 +536,12 @@ addarchive ( const char *path, const char *layout )
       sl_log (2, 0, "cannot allocate memory for new archive definition\n");
       return -1;
     }
-  
+
   /* Setup new entry and add it to the front of the chain */
   pathlayout = strlen (path) + 2;
   if ( layout )
     pathlayout += strlen (layout);
-  
+
   if ( ! (newdsa->datastream.path = (char *) malloc (pathlayout)) )
     {
       sl_log (2, 0, "cannot allocate memory for new archive path\n");
@@ -550,17 +549,17 @@ addarchive ( const char *path, const char *layout )
 	free (newdsa);
       return -1;
     }
-  
+
   if ( layout )
     snprintf (newdsa->datastream.path, pathlayout, "%s/%s", path, layout);
   else
     snprintf (newdsa->datastream.path, pathlayout, "%s", path);
-  
+
   newdsa->datastream.grouproot = NULL;
-  
+
   newdsa->next = dsarchive;
   dsarchive = newdsa;
-  
+
   return 0;
 }  /* End of addarchive() */
 
@@ -586,12 +585,12 @@ print_timelog (const char *msg)
 {
   char timestr[100];
   time_t loc_time;
-  
+
   /* Build local time string and cut off the newline */
   time(&loc_time);
   strcpy(timestr, asctime(localtime(&loc_time)));
   timestr[strlen(timestr) - 1] = '\0';
-  
+
   fprintf (stdout, "%s - %s", timestr, msg);
 }
 
@@ -643,11 +642,11 @@ usage (int level)
 	   " -CSS CSSdir     Write records in a CSS-like file layout\n"
 	   " -CHAN dir       Write records into separate Net.Sta.Loc.Chan files\n"
 	   " -QCHAN dir      Write records into separate Net.Sta.Loc.Chan.Quality files\n"
-	   " -CDAY dir       Write records into separate Net.Sta.Loc.Chan-day files\n"	   
+	   " -CDAY dir       Write records into separate Net.Sta.Loc.Chan-day files\n"
 	   "\n"
 	   " [host][:][port] Address of the SeedLink server in host:port format\n"
 	   "                   Default host is 'localhost' and default port is '18000'\n\n");
-  
+
   if  ( level )
     {
       fprintf (stderr,
