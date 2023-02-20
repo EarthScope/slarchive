@@ -761,7 +761,7 @@ ds_openfile (DataStream *datastream, const char *filename)
 	      else
 		rlim.rlim_cur = ds_maxopenfiles;
 
-	      sl_log (1, 3, "Setting open file limit to %lld\n", (int64_t) rlim.rlim_cur);
+	      sl_log (1, 3, "Setting open file limit to %lld\n", (long long int) rlim.rlim_cur);
 
 	      if ( setrlimit (RLIMIT_NOFILE, &rlim) == -1 )
 		{
