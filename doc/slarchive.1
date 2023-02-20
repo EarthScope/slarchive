@@ -36,10 +36,10 @@ flags: report the details of the handshaking, each packet received and
 detailed connection diagnostics.
 
 .IP "-p             "
-Print details of received Mini-SEED data records. This flag can be
+Print details of received miniSEED data records. This flag can be
 used multiple times ("-p -p" or "-pp") for more detail.  One flag: a
 single summary line for each data packet received.  Two flags: details
-of the Mini-SEED data records received, including information from
+of the miniSEED data records received, including information from
 fixed header and 100/1000/1001 blockettes.
 
 .IP "-f \fImax\fR"
@@ -57,8 +57,8 @@ The default value is 30 seconds.
 
 .IP "-nt \fItimeout\fR"
 The network timeout (in seconds) for the connection to the SeedLink
-server.  If no data [or keep alive packets?] are received in this 
-time the connection is closed and re-established (after the 
+server.  If no data [or keep alive packets?] are received in this
+time the connection is closed and re-established (after the
 reconnect delay has expired).  The default value is 600 seconds.
 A value of 0 disables the timeout.
 
@@ -97,7 +97,7 @@ Configure the connection in "batch" mode.  Negotiation with the remote
 server is made faster by minimizing acknowledgement checks.
 
 .IP "-Fi[:overlap]  "
-Future check initially.  Check the last Mini-SEED data record in an
+Future check initially.  Check the last miniSEED data record in an
 existing archive file and do not write new data to that file if it is
 older within a certain overlap.  The default overlap limit is 2
 seconds; the overlap can be specified by appending a colon and the
@@ -109,7 +109,7 @@ If a data stream is closed due to timeout (see option -i) the initial
 future check will be preformed again if the file is re-opened.
 
 .IP "-Fc[:overlap]  "
-Future check continuously.  Only archive Mini-SEED data records if the
+Future check continuously.  Only archive miniSEED data records if the
 first sample of the record is newer, within a certain overlap, than
 the last sample of the previous record for a given archive file.  The
 default overlap limit is 2 seconds; the overlap can be specified by
@@ -150,14 +150,14 @@ state information.
 Warning: time windowing might be disabled on the remote server.
 
 .IP "-A \fIformat\fR"
-If specified, all packets (Mini-SEED records) received will be
+If specified, all packets (miniSEED records) received will be
 appended to a directory/file structure defined by \fBformat\fP.  All
 directories implied in the \fBformat\fP string will be created if
 necessary.  The option may be used multiple times to write received
 packets to multiple archives.  See the section \fIArchiving data\fR.
 
 .IP "-SDS \fISDSdir\fR"
-If specified, all packets (Mini-SEED records) received will be saved
+If specified, all packets (miniSEED records) received will be saved
 into a Simple Data Structure (SDS) dir/file structure starting at the
 specified directory.  This directory and all subdirectories will be
 created if necessary.  This option is a preset version of the '-A'
@@ -167,7 +167,7 @@ option.  The SDS dir/file structure is:
 .fi
 
 .IP "-BUD \fIBUDdir\fR"
-If specified, all waveform data packets (Mini-SEED data records)
+If specified, all waveform data packets (miniSEED data records)
 received will be saved into a Buffer of Uniform Data (BUD) dir/file
 structure starting at the specified directory.  This directory and all
 subdirectories will be created if necessary.  This option is a preset
@@ -177,7 +177,7 @@ version of the '-A' option.  The BUD dir/file structure is:
 .fi
 
 .IP "-CSS \fICSSdir\fR"
-If specified, all packets (Mini-SEED data records) received will be
+If specified, all packets (miniSEED data records) received will be
 saved into a CSS-like data file structure starting at the specified
 directory.  This directory and all subdirectories will be created if
 necessary.  This option is a preset version of the '-A' option.  The
@@ -188,7 +188,7 @@ CSS dir/file structure is:
 where the HOUR, MIN & SEC fields are non-defining substitutions.
 
 .IP "-CHAN \fIdir\fR"
-If specified, all packets (Mini-SEED data records) received will be
+If specified, all packets (miniSEED data records) received will be
 saved into channel files in the specified directory.  This directory
 will be created if necessary.  This option is a preset version of
 the '-A' option.  The CHAN dir/file structure is:
@@ -197,7 +197,7 @@ the '-A' option.  The CHAN dir/file structure is:
 .fi
 
 .IP "-QCHAN \fIdir\fR"
-If specified, all packets (Mini-SEED data records) received will be
+If specified, all packets (miniSEED data records) received will be
 saved into channel files including the data quality identifier in the
 specified directory.  This directory will be created if necessary.
 This option is a preset version of the '-A' option.  The QCHAN dir/file
@@ -207,7 +207,7 @@ structure is:
 .fi
 
 .IP "-CDAY \fIdir\fR"
-If specified, all packets (Mini-SEED data records) received will be
+If specified, all packets (miniSEED data records) received will be
 saved into channel-day files in the specified directory.  This
 directory will be created if necessary.  This option is a preset
 version of the '-A' option.  The CDAY dir/file structure is:
@@ -274,12 +274,12 @@ flags:
   \fB#\fP : the number (#) character
   \fBt\fP : single character type code:
          D - waveform data packet
-         E - detection packet 
-         C - calibration packet 
-         T - timing packet 
-         L - log packet 
-         O - opaque data packet 
-         U - unknown/general packet 
+         E - detection packet
+         C - calibration packet
+         T - timing packet
+         L - log packet
+         O - opaque data packet
+         U - unknown/general packet
          I - INFO packet
          ? - unidentifiable packet
 .fi
@@ -369,5 +369,5 @@ a fringe case that it will not be addressed any time soon.
 .SH AUTHOR
 .nf
 Chad Trabant
-IRIS Data Management Center
+EarthScope Data Services
 .fi

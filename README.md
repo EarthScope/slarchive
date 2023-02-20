@@ -1,4 +1,4 @@
-#slarchive, a SeedLink client for archiving data streams
+# slarchive - a SeedLink client for archiving data streams
 
 For usage information see the [slarchive manual](doc/slarchive.md)
 in the 'doc' directory.
@@ -6,16 +6,6 @@ in the 'doc' directory.
 ## Building and Installation
 
 In most environments a simple 'make' will compile slarchive.
-
-Using GCC, running 'make static' will compile a static version of slarchive
-if possible.
-
-GCC can be explicitly used by running 'make gcc'.
-
-SunOS/Solaris:
-
-In order to compile under Solaris the 'src/Makefile' needs to be edited.
-See the file for instructions.
 
 For further installation simply copy the resulting binary and man page
 (in the 'doc' directory) to appropriate system directories.

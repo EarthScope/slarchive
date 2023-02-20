@@ -42,7 +42,7 @@ slarchive [options] [host][:][port]
 
 <b>-p</b>
 
-<p style="padding-left: 30px;">Print details of received Mini-SEED data records. This flag can be used multiple times ("-p -p" or "-pp") for more detail.  One flag: a single summary line for each data packet received.  Two flags: details of the Mini-SEED data records received, including information from fixed header and 100/1000/1001 blockettes.</p>
+<p style="padding-left: 30px;">Print details of received miniSEED data records. This flag can be used multiple times ("-p -p" or "-pp") for more detail.  One flag: a single summary line for each data packet received.  Two flags: details of the miniSEED data records received, including information from fixed header and 100/1000/1001 blockettes.</p>
 
 <b>-f </b><u>max</u>
 
@@ -78,11 +78,11 @@ slarchive [options] [host][:][port]
 
 <b>-Fi[:overlap]</b>
 
-<p style="padding-left: 30px;">Future check initially.  Check the last Mini-SEED data record in an existing archive file and do not write new data to that file if it is older within a certain overlap.  The default overlap limit is 2 seconds; the overlap can be specified by appending a colon and the desired overlap limit in seconds to the option.  If the overlap is exceeded an error message will be logged once for each time the file is opened.  This option only makes sense for archive formats where each unique data stream is written to a unique file (e.g. SDS format). If a data stream is closed due to timeout (see option -i) the initial future check will be preformed again if the file is re-opened.</p>
+<p style="padding-left: 30px;">Future check initially.  Check the last miniSEED data record in an existing archive file and do not write new data to that file if it is older within a certain overlap.  The default overlap limit is 2 seconds; the overlap can be specified by appending a colon and the desired overlap limit in seconds to the option.  If the overlap is exceeded an error message will be logged once for each time the file is opened.  This option only makes sense for archive formats where each unique data stream is written to a unique file (e.g. SDS format). If a data stream is closed due to timeout (see option -i) the initial future check will be preformed again if the file is re-opened.</p>
 
 <b>-Fc[:overlap]</b>
 
-<p style="padding-left: 30px;">Future check continuously.  Only archive Mini-SEED data records if the first sample of the record is newer, within a certain overlap, than the last sample of the previous record for a given archive file.  The default overlap limit is 2 seconds; the overlap can be specified by appending a colon and the desired overlap limit in seconds to the option.  If the overlap is exceeded an error message will be logged once until either a non-overlapping packet is received or a new archive file is used.  This option only makes sense for archive formats where each unique data stream is written to a unique file (e.g. SDS format).</p>
+<p style="padding-left: 30px;">Future check continuously.  Only archive miniSEED data records if the first sample of the record is newer, within a certain overlap, than the last sample of the previous record for a given archive file.  The default overlap limit is 2 seconds; the overlap can be specified by appending a colon and the desired overlap limit in seconds to the option.  If the overlap is exceeded an error message will be logged once until either a non-overlapping packet is received or a new archive file is used.  This option only makes sense for archive formats where each unique data stream is written to a unique file (e.g. SDS format).</p>
 
 <b>-s </b><u>selectors</u>
 
@@ -104,25 +104,25 @@ slarchive [options] [host][:][port]
 
 <b>-A </b><u>format</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED records) received will be appended to a directory/file structure defined by <b>format</b>.  All directories implied in the <b>format</b> string will be created if necessary.  The option may be used multiple times to write received packets to multiple archives.  See the section <u>Archiving data</u>.</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED records) received will be appended to a directory/file structure defined by <b>format</b>.  All directories implied in the <b>format</b> string will be created if necessary.  The option may be used multiple times to write received packets to multiple archives.  See the section <u>Archiving data</u>.</p>
 
 <b>-SDS </b><u>SDSdir</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED records) received will be saved into a Simple Data Structure (SDS) dir/file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The SDS dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED records) received will be saved into a Simple Data Structure (SDS) dir/file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The SDS dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <SDSdir>/<YEAR>/<NET>/<STA>/<CHAN.TYPE>/NET.STA.LOC.CHAN.TYPE.YEAR.DAY
 </pre>
 
 <b>-BUD </b><u>BUDdir</u>
 
-<p style="padding-left: 30px;">If specified, all waveform data packets (Mini-SEED data records) received will be saved into a Buffer of Uniform Data (BUD) dir/file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The BUD dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all waveform data packets (miniSEED data records) received will be saved into a Buffer of Uniform Data (BUD) dir/file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The BUD dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <BUDdir>/<NET>/<STA>/STA.NET.LOC.CHAN.YEAR.DAY
 </pre>
 
 <b>-CSS </b><u>CSSdir</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED data records) received will be saved into a CSS-like data file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The CSS dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED data records) received will be saved into a CSS-like data file structure starting at the specified directory.  This directory and all subdirectories will be created if necessary.  This option is a preset version of the '-A' option.  The CSS dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <CSSdir>/<YEAR>/<DAY>/STA.CHAN.YEAR:DAY:HOUR:MIN:SEC
 </pre>
@@ -130,21 +130,21 @@ slarchive [options] [host][:][port]
 
 <b>-CHAN </b><u>dir</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED data records) received will be saved into channel files in the specified directory.  This directory will be created if necessary.  This option is a preset version of the '-A' option.  The CHAN dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED data records) received will be saved into channel files in the specified directory.  This directory will be created if necessary.  This option is a preset version of the '-A' option.  The CHAN dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <dir>/NET.STA.LOC.CHAN
 </pre>
 
 <b>-QCHAN </b><u>dir</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED data records) received will be saved into channel files including the data quality identifier in the specified directory.  This directory will be created if necessary. This option is a preset version of the '-A' option.  The QCHAN dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED data records) received will be saved into channel files including the data quality identifier in the specified directory.  This directory will be created if necessary. This option is a preset version of the '-A' option.  The QCHAN dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <dir>/NET.STA.LOC.CHAN.QUALITY
 </pre>
 
 <b>-CDAY </b><u>dir</u>
 
-<p style="padding-left: 30px;">If specified, all packets (Mini-SEED data records) received will be saved into channel-day files in the specified directory.  This directory will be created if necessary.  This option is a preset version of the '-A' option.  The CDAY dir/file structure is:</p>
+<p style="padding-left: 30px;">If specified, all packets (miniSEED data records) received will be saved into channel-day files in the specified directory.  This directory will be created if necessary.  This option is a preset version of the '-A' option.  The CDAY dir/file structure is:</p>
 <pre style="padding-left: 30px;">
 <dir>/NET.STA.LOC.CHAN.YEAR.DAY:HOUR:MIN:SEC
 </pre>
@@ -267,7 +267,7 @@ II *    BHZ
 
 <pre >
 Chad Trabant
-IRIS Data Management Center
+EarthScope Data Services
 </pre>
 
 
