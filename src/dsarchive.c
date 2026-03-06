@@ -24,7 +24,9 @@
 #include <time.h>
 #include <glob.h>
 
+#include <libmseed.h>
 #include "dsarchive.h"
+#include "strutils.h"
 
 /* Maximum number of open files */
 int ds_maxopenfiles = 0;
@@ -37,8 +39,6 @@ static DataStreamGroup *ds_getstream (DataStream *datastream, int reclen,
 static int ds_openfile (DataStream *datastream, const char *filename);
 static int ds_closeidle (DataStream *datastream, int idletimeout);
 static void ds_shutdown (DataStream *datastream);
-static double sl_msr_lastsamptime (SLMSrecord *msr);
-static char sl_typecode (int type);
 
 
 /***************************************************************************
@@ -53,12 +53,13 @@ static char sl_typecode (int type);
  * Returns 0 on success, -1 on error.
  ***************************************************************************/
 extern int
-ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
+ds_streamproc (DataStream *datastream, const SLpacketinfo *packetinfo,
+	       const char *payload, uint32_t payloadlength, long suffix)
 {
   DataStreamGroup *foundgroup = NULL;
   char *tptr;
   char tstr[20];
-  char net[3], sta[6], loc[3], chan[4];
+  char net[11], sta[11], loc[11], chan[11];
   char filename[MAX_FILENAME_LEN] = "";
   char definition[MAX_FILENAME_LEN] = "";
   char pathformat[MAX_FILENAME_LEN] = "";
@@ -73,10 +74,16 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
   char *w, *p, def;
   double dsamprate = 0.0;
 
-  int reclen = SLRECSIZE;
+  int reclen = 512;
+  MS3Record *msr = NULL;
+  char typecode = 'D';
+  uint16_t st_year, st_yday;
+  uint8_t st_hour, st_min, st_sec;
+  uint32_t st_nsec;
+  nstime_t depochstime, lastsamptime;
 
   /* Special case for stream shutdown */
-  if ( ! msr )
+  if ( ! packetinfo )
     {
       sl_log (1, 2, "Closing archive for %s\n", datastream->path);
 
@@ -90,6 +97,76 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       sl_log (2, 0, "ds_streamproc(): empty path format\n");
       return -1;
     }
+
+  if ( msr3_parse(payload, payloadlength, &msr, 0, 0) != MS_NOERROR )
+    {
+      sl_log (2, 0, "ds_streamproc(): invalid or incomplete record\n");
+      return -1;
+    }
+
+  if ( ms_sid2nslc_n(msr->sid, net, sizeof(net),
+			       sta, sizeof(sta),
+			       loc, sizeof(loc),
+			       chan, sizeof(chan)) < 0 )
+    {
+      sl_log (2, 0, "ds_streamproc(): record has invalid or unsupported source identifier\n");
+      msr3_free(&msr);
+      return -1;
+    }
+
+  if ( ms_nstime2time(msr->starttime, &st_year,
+				      &st_yday,
+				      &st_hour,
+				      &st_min,
+				      &st_sec,
+				      &st_nsec) < 0 )
+    {
+      sl_log (2, 0, "ds_streamproc(): record has invalid start time\n");
+      msr3_free(&msr);
+      return -1;
+    }
+
+  typecode = 'D';
+  dsamprate = msr->samprate;
+  depochstime = msr->starttime;
+  lastsamptime = msr->starttime;
+
+  if ( dsamprate > 0 )
+      /* This is the actual last sample time and *not* the time
+       *  "covered" by the last sample. */
+      lastsamptime += (msr->numsamples - 1 ) * (1.0 / msr->samprate);
+
+  if ( msr->formatversion == 2 )
+    {
+      if ( msr->samplecnt == 0 )
+	{
+	  if ( mseh_exists(msr, "FDSN.Event.Detection" ) )
+	      typecode = 'E';
+	  else if ( mseh_exists(msr, "FDSN.Calibration.Sequence" ) )
+	      typecode = 'C';
+	  else if ( mseh_exists(msr, "FDSN.Time.Exception" ) )
+	      typecode = 'T';
+	  else
+	      typecode = 'O';  /* opaque */
+	}
+      else if ( msr->samprate == 0.0 && msr->sampletype == 'a' )
+	{
+	  typecode = 'L';      /* log */
+	}
+    }
+  else if ( msr->formatversion == 3 )
+    {
+      typecode = '3';
+    }
+  else
+    {
+      sl_log (2, 0, "ds_streamproc(): unsupported miniSEED version: %d\n", msr->formatversion);
+      msr3_free(&msr);
+      return -1;
+    }
+
+  /* Done with msr */
+  msr3_free(&msr);
 
   /* Create a copy of the specified path, it will be modified during parsing */
   snprintf (pathformat, sizeof(pathformat), "%s", datastream->path);
@@ -125,7 +202,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       switch ( *w )
 	{
 	case 't' :
-	  snprintf (tstr, sizeof(tstr), "%c", sl_typecode(datastream->packettype));
+	  snprintf (tstr, sizeof(tstr), "%c", typecode);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -138,7 +215,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'n' :
-	  sl_strncpclean (net, msr->fsdh.network, 2);
 	  strncat (filename, net, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, net, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -151,7 +227,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 's' :
-	  sl_strncpclean (sta, msr->fsdh.station, 5);
 	  strncat (filename, sta, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, sta, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -164,7 +239,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'l' :
-	  sl_strncpclean (loc, msr->fsdh.location, 2);
 	  strncat (filename, loc, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, loc, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -177,7 +251,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'c' :
-	  sl_strncpclean (chan, msr->fsdh.channel, 3);
 	  strncat (filename, chan, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, chan, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -190,7 +263,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'Y' :
-	  snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.year);
+	  snprintf (tstr, sizeof(tstr), "%04d", (int) st_year);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -203,11 +276,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'y' :
-	  tdy = (int) msr->fsdh.start_time.year;
-	  while ( tdy > 100 )
-	    {
-	      tdy -= 100;
-	    }
+	  tdy = (int) st_year % 100;
 	  snprintf (tstr, sizeof(tstr), "%02d", tdy);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
@@ -221,7 +290,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'j' :
-	  snprintf (tstr, sizeof(tstr), "%03d", (int) msr->fsdh.start_time.day);
+	  snprintf (tstr, sizeof(tstr), "%03d", (int) st_yday);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -234,7 +303,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'H' :
-	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.hour);
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) st_hour);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -247,7 +316,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'M' :
-	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.min);
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) st_min);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -260,7 +329,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'S' :
-	  snprintf (tstr, sizeof(tstr), "%02d", (int) msr->fsdh.start_time.sec);
+	  snprintf (tstr, sizeof(tstr), "%02d", (int) st_sec);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -273,7 +342,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'F' :
-	  snprintf (tstr, sizeof(tstr), "%04d", (int) msr->fsdh.start_time.fract);
+	  snprintf (tstr, sizeof(tstr), "%04d", (int) st_nsec / 100000);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -286,7 +355,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'q' :
-	  snprintf (tstr, sizeof(tstr), "%c", msr->fsdh.dhq_indicator);
+	  snprintf (tstr, sizeof(tstr), "%c", 'D');
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -299,7 +368,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'L' :
-	  snprintf (tstr, sizeof(tstr), "%d", SLRECSIZE);
+	  snprintf (tstr, sizeof(tstr), "%d", reclen);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
 	  if ( nondefflags > 0 )
@@ -312,7 +381,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'r' :
-	  sl_msr_dsamprate (msr, &dsamprate);
 	  snprintf (tstr, sizeof(tstr), "%ld", (long int) (dsamprate+0.5));
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
@@ -326,7 +394,6 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	  p = w + 1;
 	  break;
 	case 'R' :
-	  sl_msr_dsamprate (msr, &dsamprate);
 	  snprintf (tstr, sizeof(tstr), "%.6f", dsamprate);
 	  strncat (filename, tstr, (sizeof(filename) - fnlen));
 	  if ( def ) strncat (definition, tstr, (sizeof(definition) - fnlen));
@@ -392,6 +459,7 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 
   if ( foundgroup != NULL )
     {
+#if 0
       /* Initial check (existing files) for future data, a negative
        * last sample time indicates it was derived from an existing
        * file.
@@ -415,15 +483,16 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
 	      return 0;
 	    }
 	}
+#endif
 
       /* Continuous check for future data, a positive last sample time
        * indicates it was derived from the last packet received.
        */
-      if ( datastream->packettype == SLDATA &&
+      if ( (typecode == 'D' || typecode == '3') &&
 	   datastream->futurecontflag &&
 	   foundgroup->lastsample > 0 )
 	{
-	  int overlap = (int) (foundgroup->lastsample - sl_msr_depochstime(msr));
+	  int overlap = (int) (foundgroup->lastsample - depochstime);
 
           if ( overlap > datastream->futurecont )
 	    {
@@ -449,13 +518,13 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       writeloops = 0;
       while ( writeloops < 10 )
         {
-	  rv = write (foundgroup->filed, msr->msrecord+writebytes, reclen-writebytes);
+	  rv = write (foundgroup->filed, payload+writebytes, payloadlength-writebytes);
 
 	  if ( rv > 0 )
 	    writebytes += rv;
 
 	  /* Done if the entire record was written */
-	  if ( writebytes == reclen )
+	  if ( writebytes == payloadlength )
 	    break;
 
 	  if ( rv < 0 )
@@ -486,9 +555,9 @@ ds_streamproc (DataStream *datastream, SLMSrecord *msr, long suffix)
       foundgroup->modtime = time (NULL);
 
       /* Update time of last sample if future checking */
-      if ( datastream->packettype == SLDATA &&
+      if ( (typecode == 'D' || typecode == '3') &&
 	   (datastream->futureinitflag || datastream->futurecontflag) )
-	foundgroup->lastsample = sl_msr_lastsamptime (msr);
+	foundgroup->lastsample = lastsamptime;
 
       return 0;
     }
@@ -651,6 +720,7 @@ ds_getstream (DataStream *datastream, int reclen,
 	  return NULL;
 	}
 
+#if 0
       /* Initial future data check (existing files) needs the last
        * sample time from the last record.  Only read the last record
        * if this stream has not been used and there is at least one
@@ -698,6 +768,7 @@ ds_getstream (DataStream *datastream, int reclen,
 	      free (lrecord);
 	    }
 	}
+#endif
     }
 
   /* There used to be a further check here, but it shouldn't be reached, just in
@@ -942,65 +1013,3 @@ ds_shutdown (DataStream *datastream)
       free (prevgroup);
     }
 }  /* End of ds_shutdown() */
-
-
-/***************************************************************************
- * sl_msr_lastsamptime:
- *
- * Calculate the time of the last sample in the record; this is the actual
- * last sample time and *not* the time "covered" by the last sample.
- *
- * Returns the time of the last sample as a double precision epoch time.
- ***************************************************************************/
-double
-sl_msr_lastsamptime (SLMSrecord *msr)
-{
-  double startepoch;
-  double dsamprate;
-  double span = 0.0;
-
-  sl_msr_dsamprate (msr, &dsamprate);
-
-  if ( dsamprate )
-    span = (double) (msr->fsdh.num_samples - 1 ) * (1.0 / dsamprate);
-
-  startepoch = sl_msr_depochstime(msr);
-
-  return (startepoch + span);
-}  /* End of sl_msr_lastsamptime() */
-
-
-/***************************************************************************
- * sl_typecode:
- * Look up the one character code that corresponds to the packet type.
- *
- * Returns the type character on success and '?' if no matching type.
- ***************************************************************************/
-char
-sl_typecode (int packettype)
-{
-  switch (packettype)
-    {
-    case SLDATA:
-      return 'D';
-    case SLDET:
-      return 'E';
-    case SLCAL:
-      return 'C';
-    case SLTIM:
-      return 'T';
-    case SLMSG:
-      return 'L';
-    case SLBLK:
-      return 'O';
-    case SLCHA:
-      return 'U';
-    case SLINF:
-    case SLINFT:
-    case SLKEEP:
-      return 'I';
-
-    default:
-      return '?';
-    }
-}

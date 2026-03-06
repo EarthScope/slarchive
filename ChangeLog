@@ -1,3 +1,6 @@
+2026.065: 4.0a
+	- Port to libslink4.
+
 2023.051: 3.2
 	- Update libslink to 2.7.1.
 	- Fix crash on record parsing error

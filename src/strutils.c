@@ -28,7 +28,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "libslink.h"
+#include "strutils.h"
 
 /***************************************************************************
  * sl_strparse:
@@ -115,34 +115,3 @@ sl_strparse (const char *string, const char *delim, SLstrlist **list)
     return 0;
   }
 } /* End of sl_strparse() */
-
-/***************************************************************************
- * sl_strncpclean:
- *
- * Copy 'length' characters from 'source' to 'dest' while removing all
- * spaces.  The result is left justified and always null terminated.
- * The source string must have at least 'length' characters and the
- * destination string must have enough room needed for the non-space
- * characters within 'length' and the null terminator.
- *
- * Returns the number of characters (not including the null terminator) in
- * the destination string.
- ***************************************************************************/
-int
-sl_strncpclean (char *dest, const char *source, int length)
-{
-  int sidx, didx;
-
-  for (sidx = 0, didx = 0; sidx < length; sidx++)
-  {
-    if (*(source + sidx) != ' ')
-    {
-      *(dest + didx) = *(source + sidx);
-      didx++;
-    }
-  }
-
-  *(dest + didx) = '\0';
-
-  return didx;
-} /* End of sl_strncpclean() */

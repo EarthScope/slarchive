@@ -1,0 +1,6 @@
+[submodule "libslink"]
+	path = libslink
+	url = https://github.com/EarthScope/libslink.git
+[submodule "libmseed"]
+	path = libmseed
+	url = https://github.com/EarthScope/libmseed.git

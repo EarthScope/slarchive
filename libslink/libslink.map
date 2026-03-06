@@ -1,6 +1,0 @@
-{
-  global:
-      sl_*;
-  local:
-      *;
-};
