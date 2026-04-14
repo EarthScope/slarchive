@@ -140,16 +140,16 @@ ds_streamproc (DataStream *datastream, const SLpacketinfo *packetinfo,
     {
       if ( msr->samplecnt == 0 )
 	{
-	  if ( mseh_exists(msr, "FDSN.Event.Detection" ) )
+	  if ( mseh_exists(msr, "/FDSN/Event/Detection" ) )
 	      typecode = 'E';
-	  else if ( mseh_exists(msr, "FDSN.Calibration.Sequence" ) )
+	  else if ( mseh_exists(msr, "/FDSN/Calibration/Sequence" ) )
 	      typecode = 'C';
-	  else if ( mseh_exists(msr, "FDSN.Time.Exception" ) )
+	  else if ( mseh_exists(msr, "/FDSN/Time/Exception" ) )
 	      typecode = 'T';
 	  else
 	      typecode = 'O';  /* opaque */
 	}
-      else if ( msr->samprate == 0.0 && msr->sampletype == 'a' )
+      else if ( msr->samprate == 0.0 )
 	{
 	  typecode = 'L';      /* log */
 	}
