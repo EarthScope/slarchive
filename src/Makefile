@@ -5,21 +5,21 @@
 #   CFLAGS : Specify compiler options to use
 
 # Required compiler parameters
-CFLAGS += -I../libslink
+CFLAGS += -I../libmseed -I../libslink
 
 # GCC specific parameters
 GCC = gcc
-GCCFLAGS = -O2 -Wall -I../libslink
+GCCFLAGS = -O2 -Wall -I../libmseed -I../libslink
 
-LDFLAGS = -L../libslink
-LDLIBS  = -lslink
+LDFLAGS = -L../libmseed -L../libslink
+LDLIBS  = -lmseed -lslink
 
 # For SunOS/Solaris uncomment the following line
 #LDLIBS = -lslink -lsocket -lnsl -lrt
 
 BIN  = ../slarchive
 
-OBJS = dsarchive.o slarchive.o
+OBJS = strutils.o dsarchive.o slarchive.o
 
 all: $(BIN)
 

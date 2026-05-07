@@ -20,11 +20,13 @@
 #include <libslink.h>
 
 #include "dsarchive.h"
+#include "strutils.h"
 
 #define PACKAGE   "slarchive"
-#define VERSION   "3.2"
+#define VERSION   "4.0a"
 
-static void packet_handler (char *msrecord, int packet_type, int seqnum);
+static void packet_handler (SLCD *slconn, const SLpacketinfo *packetinfo,
+			    const char *payload, uint32_t payloadlength);
 static int  parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt);
 static int  addarchive(const char *path, const char *layout);
@@ -50,9 +52,10 @@ static DSArchive *dsarchive;
 int
 main (int argc, char **argv)
 {
-  SLpacket *slpack;
-  int seqnum;
-  int ptype;
+  const SLpacketinfo *packetinfo = NULL;
+  char *plbuffer = NULL;
+  uint32_t plbuffersize = 16384;
+  int status;
   int packetcnt = 0;
 
   /* Signal handling, use POSIX calls with standardized semantics */
@@ -73,7 +76,14 @@ main (int argc, char **argv)
   dsarchive = NULL;
 
   /* Allocate and initialize a new connection description */
-  slconn = sl_newslcd();
+  slconn = sl_initslcd(PACKAGE, VERSION);
+
+  /* Configure authentication via SEEDLINK_USERNAME and SEEDLINK_PASSWORD
+   * environment variables if they are set */
+  if (getenv ("SEEDLINK_USERNAME") && getenv ("SEEDLINK_PASSWORD"))
+    {
+      sl_set_auth_envvars (slconn, "SEEDLINK_USERNAME", "SEEDLINK_PASSWORD");
+    }
 
   /* Process given parameters (command line and parameter file) */
   if (parameter_proc (argc, argv) < 0)
@@ -83,39 +93,79 @@ main (int argc, char **argv)
       return -1;
     }
 
-  /* Loop with the connection manager */
-  while ( sl_collect (slconn, &slpack) )
+  /* Set signal handlers to trigger clean connection shutdown */
+  if (sl_set_termination_handler (slconn) < 0)
     {
-      ptype  = sl_packettype (slpack);
-      seqnum = sl_sequence (slpack);
-
-      packet_handler (slpack->msrecord, ptype, seqnum);
-
-      if ( statefile && stateint )
-	{
-	  if ( ++packetcnt >= stateint )
-	    {
-	      sl_savestate (slconn, statefile);
-	      packetcnt = 0;
-	    }
-	}
+      sl_log (2, 0, "Failed to set termination handler\n");
+      return -1;
     }
 
-  /* Do all the necessary cleanup and exit */
-  if (slconn->link != -1)
-    sl_disconnect (slconn);
+  /* Allocate payload buffer */
+  if ((plbuffer = (char *)malloc (plbuffersize)) == NULL)
+    {
+      sl_log (2, 0, "Memory allocation failed\n");
+      return -1;
+    }
+
+  /* Loop with the connection manager */
+  while ((status = sl_collect (slconn, &packetinfo,
+			       plbuffer, plbuffersize)) != SLTERMINATE)
+    {
+      if (status == SLPACKET)
+	{
+	  packet_handler (slconn, packetinfo, plbuffer, packetinfo->payloadcollected);
+
+	  if ( statefile && stateint )
+	    {
+	      if ( ++packetcnt >= stateint )
+	        {
+	          sl_savestate (slconn, statefile);
+	          packetcnt = 0;
+	        }
+	    }
+	}
+      else if (status == SLTOOLARGE)
+	{
+	  /* Here we could increase the payload buffer size to accommodate if desired.
+           * If you wish to increase the buffer size be sure to copy any data that might
+           * have already been collected from the old buffer to the new.  realloc() does this. */
+          sl_log (2, 0, "received payload length %u too large for max buffer of %u\n",
+	          packetinfo->payloadlength, plbuffersize);
+
+	  break;
+	}
+      else if (status == SLAUTHFAIL)
+	{
+          sl_log (2, 0, "authentication failed\n");
+	  break;
+	}
+      else if (status == SLNOPACKET)
+	{
+	  /* Here should only occur when non-blocking, i.e. slconn->noblock == 1 */
+	  sl_log (0, 2, "sleeping after receiving no data from sl_collect()\n");
+	  sl_usleep(500000);
+	}
+
+      /* Here we could send an in-stream INFO request with sl_request_info() */
+    }
+
+  /* Make sure everything is shut down and save the state file */
+  sl_disconnect (slconn);
 
   if (dsarchive) {
     DSArchive *curdsa = dsarchive;
 
     while ( curdsa != NULL ) {
-      ds_streamproc (&curdsa->datastream, NULL, 0);
+      ds_streamproc (&curdsa->datastream, NULL, NULL, 0, 0);
       curdsa = curdsa->next;
     }
   }
 
   if (statefile)
     sl_savestate (slconn, statefile);
+
+  sl_freeslcd (slconn);
+  free (plbuffer);
 
   return 0;
 }  /* End of main() */
@@ -126,21 +176,16 @@ main (int argc, char **argv)
  * Process a received packet based on packet type.
  ***************************************************************************/
 static void
-packet_handler (char *msrecord, int packet_type, int seqnum)
+packet_handler (SLCD *slconn, const SLpacketinfo *packetinfo,
+		const char *payload, uint32_t payloadlength)
 {
-  static SLMSrecord * msr = NULL;
-
+  char payloadsummary[128] = {0};
   double dtime;			/* Epoch time */
   double secfrac;		/* Fractional part of epoch time */
   time_t ttime;			/* Integer part of epoch time */
   char timestamp[36] = {0};
   struct tm *timep;
   int    archflag = 1;
-
-  /* The following is dependent on the packet type values in libslink.h */
-  char *type[]  = { "Data", "Detection", "Calibration", "Timing",
-		    "Message", "General", "Request", "Info",
-                    "Info (terminated)", "KeepAlive" };
 
   if (verbose >= 1)
   {
@@ -153,21 +198,24 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
 	      timep->tm_year + 1900, timep->tm_yday + 1, timep->tm_hour,
 	      timep->tm_min, timep->tm_sec, secfrac);
 
-    sl_log (1, 1, "%s, seq %d, Received %s blockette\n",
-	    timestamp, seqnum, type[packet_type]);
-  }
-
-  /* Parse data record and print requested detail if any */
-  sl_msr_parse (slconn->log, msrecord, &msr, 1, 0);
-
-  if (msr == NULL)
-  {
-    sl_log (2, 0, "cannot parse miniSEED record\n");
-    return;
+    sl_log (0, 1, "%s, seq %" PRIu64 ", Received %u bytes of payload format %s\n",
+            timestamp, packetinfo->seqnum, payloadlength,
+	    sl_formatstr(packetinfo->payloadformat, packetinfo->payloadsubformat));
   }
 
   if ( ppackets )
-    sl_msr_print (slconn->log, msr, ppackets - 1);
+  {
+    /* Parse data record and print requested detail if any */
+    if (sl_payload_summary (slconn->log, packetinfo, payload, payloadlength,
+                            payloadsummary, sizeof (payloadsummary)) != -1)
+    {
+      sl_log (1, 1, "%s\n", payloadsummary);
+    }
+    else
+    {
+      sl_log (1, 1, "%s() Error generating payload summary\n", __func__);
+    }
+  }
 
   /* Write packet to all archives in archive definition chain */
   if (dsarchive && archflag)
@@ -175,9 +223,11 @@ packet_handler (char *msrecord, int packet_type, int seqnum)
     DSArchive *curdsa = dsarchive;
 
     while ( curdsa != NULL ) {
+#if 0
       curdsa->datastream.packettype = packet_type;
+#endif
 
-      ds_streamproc (&curdsa->datastream, msr, 0);
+      ds_streamproc (&curdsa->datastream, packetinfo, payload, payloadlength, 0);
 
       curdsa = curdsa->next;
     }
@@ -247,9 +297,12 @@ parameter_proc (int argcount, char **argvec)
         }
       else if (strncmp (argvec[optind], "-Fi", 3) == 0)
         {
+	  sl_log (1, 1, "-Fi is not supported");
+#if 0
 	  futureinitflag = 1;
 	  if ( (tptr = strchr(argvec[optind], ':')) )
 	    futureinit = atoi(tptr+1);
+#endif
         }
       else if (strcmp (argvec[optind], "-d") == 0)
 	{
@@ -341,7 +394,14 @@ parameter_proc (int argcount, char **argvec)
 	}
       else if (!slconn->sladdr)
         {
-          slconn->sladdr = argvec[optind];
+          /* will be free()d by sl_freeslcd(), so strdup() */
+          slconn->sladdr = strdup(argvec[optind]);
+
+          if (!slconn->sladdr)
+            {
+              perror("strdup");
+              exit (1);
+            }
         }
       else
 	{
@@ -404,7 +464,7 @@ parameter_proc (int argcount, char **argvec)
 	  return -1;
 	}
 
-      slconn->begin_time = strdup (timelist->element);
+      slconn->start_time = strdup (timelist->element);
 
       timelist = timelist->next;
 
@@ -431,10 +491,12 @@ parameter_proc (int argcount, char **argvec)
       if ( sl_parse_streamlist (slconn, multiselect, selectors) == -1 )
 	return -1;
     }
+#if 0
   else if ( !streamfile )
     {		         /* No 'streams' array, assuming uni-station mode */
       sl_setuniparams (slconn, selectors, -1, 0);
     }
+#endif
 
   /* Attempt to recover sequence numbers from state file */
   if (statefile)
