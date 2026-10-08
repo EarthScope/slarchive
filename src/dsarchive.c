@@ -748,47 +748,47 @@ ds_openfile (DataStream *datastream, const char *filename)
       rlimit = 1;
 
       if ( getrlimit (RLIMIT_NOFILE, &rlim) == -1 )
-	{
-	  sl_log (2, 0, "getrlimit failed to get open file limit\n");
-	}
+        {
+          sl_log (2, 0, "getrlimit failed to get open file limit\n");
+        }
       else
-	{
-	  /* Increase process open file limit to ds_maxopenfiles or hard limit */
-	  if ( ds_maxopenfiles && (rlim_t)ds_maxopenfiles > rlim.rlim_cur )
-	    {
-	      if ( (rlim_t)ds_maxopenfiles > rlim.rlim_max )
-		rlim.rlim_cur = rlim.rlim_max;
-	      else
-		rlim.rlim_cur = ds_maxopenfiles;
+        {
+          /* Increase process open file limit to ds_maxopenfiles or hard limit */
+          if ( ds_maxopenfiles && (rlim_t)ds_maxopenfiles > rlim.rlim_cur )
+            {
+              if ( (rlim_t)ds_maxopenfiles > rlim.rlim_max )
+                rlim.rlim_cur = rlim.rlim_max;
+              else
+                rlim.rlim_cur = ds_maxopenfiles;
 
-	      sl_log (1, 3, "Setting open file limit to %lld\n", (long long int) rlim.rlim_cur);
+              sl_log (1, 3, "Setting open file limit to %lld\n", (long long int) rlim.rlim_cur);
 
-	      if ( setrlimit (RLIMIT_NOFILE, &rlim) == -1 )
-		{
-		  sl_log (2, 0, "setrlimit failed to set open file limit\n");
-		}
+              if ( setrlimit (RLIMIT_NOFILE, &rlim) == -1 )
+                {
+                  sl_log (2, 0, "setrlimit failed to set open file limit\n");
+                }
 
-	      ds_maxopenfiles = rlim.rlim_cur;
-	    }
-	  /* Set max to current soft limit if not already specified */
-	  else if ( ! ds_maxopenfiles )
-	    {
-	      ds_maxopenfiles = rlim.rlim_cur;
-	    }
-	}
+              ds_maxopenfiles = rlim.rlim_cur;
+            }
+          /* Set max to current soft limit if not already specified */
+          else if ( ! ds_maxopenfiles )
+            {
+              ds_maxopenfiles = rlim.rlim_cur;
+            }
+        }
     }
 
   /* Close open files from the DataStream if already at the limit of (ds_maxopenfiles - 10) */
   if ( (ds_openfilecount + 10) > ds_maxopenfiles )
     {
       sl_log (1, 2, "Maximum open archive files reached (%d), closing idle stream files\n",
-	      (ds_maxopenfiles - 10));
+              (ds_maxopenfiles - 10));
 
       /* Close idle streams until we have free descriptors */
       while ( ds_closeidle (datastream, idletimeout) == 0 && idletimeout >= 0 )
-	{
-	  idletimeout = (idletimeout / 2) - 1;
-	}
+        {
+          idletimeout = (idletimeout / 2) - 1;
+        }
     }
 
   /* Parse filename into path components */
@@ -812,24 +812,24 @@ ds_openfile (DataStream *datastream, const char *filename)
       dplen = strlen (dirpath);
 
       if ( access (dirpath, F_OK) )
-	{
-	  if ( errno == ENOENT )
-	    {
-	      sl_log (1, 1, "Creating directory: %s\n", dirpath);
-	      if ( mkdir (dirpath, S_IRWXU | S_IRWXG | S_IRWXO) ) /* Mode 0777 */
-		{
-		  sl_log (2, 1, "ds_openfile: mkdir(%s) %s\n", dirpath, strerror (errno));
-		  sl_strparse (NULL, NULL, &dplist);
-		  return -1;
-		}
-	    }
-	  else
-	    {
-	      sl_log (2, 0, "%s: access denied, %s\n", dirpath, strerror(errno));
-	      sl_strparse (NULL, NULL, &dplist);
-	      return -1;
-	    }
-	}
+        {
+          if ( errno == ENOENT )
+            {
+              sl_log (1, 1, "Creating directory: %s\n", dirpath);
+              if ( mkdir (dirpath, S_IRWXU | S_IRWXG | S_IRWXO) ) /* Mode 0777 */
+                {
+                  sl_log (2, 1, "ds_openfile: mkdir(%s) %s\n", dirpath, strerror (errno));
+                  sl_strparse (NULL, NULL, &dplist);
+                  return -1;
+                }
+            }
+          else
+            {
+              sl_log (2, 0, "%s: access denied, %s\n", dirpath, strerror(errno));
+              sl_strparse (NULL, NULL, &dplist);
+              return -1;
+            }
+        }
 
       strncat (dirpath, "/", (sizeof(dirpath) - dplen));
       dplen += 1;
@@ -840,6 +840,12 @@ ds_openfile (DataStream *datastream, const char *filename)
   /* Free path component list */
   sl_strparse (NULL, NULL, &dplist);
 
+  /* Log file creation */
+  if (access(filename, F_OK) != 0)
+    {
+      sl_log (0, 0, "New data stream file created: %s\n", filename);
+      fflush(stdout);
+    }
   /* Open file */
   if ( (oret = open (filename, flags, mode)) != -1 )
     {

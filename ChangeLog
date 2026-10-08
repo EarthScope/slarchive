@@ -1,3 +1,8 @@
+2023.074:
+	- Change verbosity level on new file creation
+	- Change versionning policy to calver
+2023.052: 3.2.1
+	- Add a log line on new file creation
 2023.051: 3.2
 	- Update libslink to 2.7.1.
 	- Fix crash on record parsing error
